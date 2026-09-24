@@ -181,8 +181,8 @@ impl Window {
         split.set_max_sidebar_width(s.int("sidebar-width") as f64);
         split.set_sidebar_width_fraction(0.3);
         split.bind_property("show-sidebar", &sidebar_toggle, "active").bidirectional().sync_create().build();
-        // Persist only user-initiated sidebar changes, not the viewer hiding it.
-        split.set_show_sidebar(s.boolean("sidebar-visible"));
+        // The sidebar always starts open; hiding it (F9) lasts for the session.
+        split.set_show_sidebar(true);
 
         let toolbar = adw::ToolbarView::new();
         toolbar.add_top_bar(&header);
@@ -491,14 +491,6 @@ impl Window {
 
     fn setup_signals(&self) {
         let i = &self.0;
-        let w = self.downgrade();
-        i.split.connect_show_sidebar_notify(move |split| {
-            if let Some(win) = upgrade(&w) {
-                if win.0.sidebar_before_viewer.get().is_none() {
-                    let _ = settings().set_boolean("sidebar-visible", split.shows_sidebar());
-                }
-            }
-        });
         let w = self.downgrade();
         i.tab_view.connect_selected_page_notify(move |_| {
             if let Some(win) = upgrade(&w) {

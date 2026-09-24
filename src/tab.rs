@@ -1052,6 +1052,17 @@ impl Tab {
     }
 
     pub fn focus_view(&self) {
+        // While loading, hold focus on the page (see reload()); with nothing
+        // selected, start at the first cell instead of wherever GTK's focus
+        // tracker drifted to.
+        if self.is_scanning() {
+            self.0.stack.grab_focus();
+            return;
+        }
+        if self.0.model.first_selected().is_none() && self.0.model.n_items() > 0 {
+            self.focus_first_item();
+            return;
+        }
         match self.0.mode.get() {
             ViewMode::Grid => {
                 self.0.grid.grab_focus();

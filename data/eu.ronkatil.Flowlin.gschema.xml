@@ -41,10 +41,6 @@
       <default>true</default>
       <summary>Show the relative folder under thumbnails in recursive mode</summary>
     </key>
-    <key name="sidebar-visible" type="b">
-      <default>true</default>
-      <summary>Sidebar visible</summary>
-    </key>
     <key name="sidebar-width" type="i">
       <range min="160" max="480"/>
       <default>300</default>
