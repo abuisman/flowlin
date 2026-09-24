@@ -27,13 +27,20 @@ Flowlin makes no network requests. It also leaves no trace of what you browse:
   of thousands of files.
 - Viewer: fit / fill / 100 % / free zoom around the cursor, pan, long-press for
   100 %, trilinear downscaling (no moiré), EXIF orientation, animated
-  GIF/WebP/APNG, view-only rotation, slideshow, prefetching of neighbours.
+  GIF/WebP/APNG, view-only rotation, slideshow (**P**), prefetching of neighbours.
 - Recursive mode streams results while the walk runs (capped at 200 000 files
   by default), skips hidden and symlinked folders.
-- FlowVision navigation: **W** parent, **S** back, **A**/**D** previous/next
-  folder that contains images; right-button drag gestures (up = parent,
-  down = back, left/right = previous/next folder with images, up-right = next
-  sibling with images, down-right = close tab).
+- Keyboard-first browsing: **W/A/S/D** work like the arrow keys everywhere
+  (folder tree, thumbnails, viewer). **Tab** switches between the folder tree
+  and the thumbnails. In the tree, moving to a folder opens it and **Space**
+  focuses its first image; **Space** / **Enter** open and close the viewer.
+  In the viewer, Up/Down move one grid row. **R** includes subfolders.
+- Videos (mp4, mkv, webm, mov, avi): thumbnails via GStreamer (in memory),
+  playback with media controls; arrows seek 5 s (Shift: 10 s), Up/Down
+  volume, **K** play/pause, **M** mute, Page Up/Down previous/next file.
+- Right-button drag gestures: up = parent, down = back, left/right =
+  previous/next folder that contains images, up-right = next sibling with
+  images, down-right = close tab.
 - File management: trash with undo, permanent delete, rename, cut/copy/paste
   (compatible with Nautilus), drag and drop, new folder, open with, show in
   file manager, properties with EXIF summary.
