@@ -43,7 +43,7 @@
     </key>
     <key name="sidebar-width" type="i">
       <range min="160" max="480"/>
-      <default>240</default>
+      <default>300</default>
       <summary>Sidebar width in pixels</summary>
     </key>
     <key name="window-width" type="i">

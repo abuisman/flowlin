@@ -27,45 +27,113 @@ pub async fn trash(paths: &[PathBuf]) -> (Vec<PathBuf>, Vec<glib::Error>) {
 }
 
 /// Put previously trashed files back where they were (used by Undo).
+/// Implements the freedesktop.org Trash spec directly (the format GIO
+/// writes), so it works without GVfs' `trash://` backend.
 pub async fn restore_from_trash(originals: &[PathBuf]) -> usize {
-    let trash = gio::File::for_uri("trash:///");
-    let attrs = "standard::name,trash::orig-path,trash::deletion-date";
-    let Ok(en) = trash.enumerate_children_future(attrs, gio::FileQueryInfoFlags::NONE, glib::Priority::DEFAULT).await
-    else {
-        return 0;
-    };
-    // orig path -> (deletion date, trash child), most recent wins.
-    let mut found: std::collections::HashMap<PathBuf, (String, gio::File)> = Default::default();
-    loop {
-        let infos = match en.next_files_future(200, glib::Priority::DEFAULT).await {
-            Ok(v) if !v.is_empty() => v,
-            _ => break,
-        };
-        for info in infos {
-            let Some(orig) = info.attribute_byte_string("trash::orig-path") else { continue };
-            let orig = PathBuf::from(orig.as_str());
-            if !originals.contains(&orig) {
+    let originals = originals.to_vec();
+    gio::spawn_blocking(move || trash_spec::restore(&originals)).await.unwrap_or(0)
+}
+
+mod trash_spec {
+    use std::os::unix::fs::MetadataExt;
+    use std::path::{Path, PathBuf};
+
+    /// Trash directories that may hold `orig`: the home trash plus the
+    /// per-volume ones on `orig`'s filesystem.
+    fn trash_dirs(orig: &Path) -> Vec<(PathBuf, Option<PathBuf>)> {
+        let mut out = vec![(gtk::glib::user_data_dir().join("Trash"), None)];
+        if let Some(top) = mount_top(orig) {
+            let uid = owner_uid();
+            out.push((top.join(".Trash").join(uid.to_string()), Some(top.clone())));
+            out.push((top.join(format!(".Trash-{uid}")), Some(top)));
+        }
+        out
+    }
+
+    fn owner_uid() -> u32 {
+        std::fs::metadata(gtk::glib::home_dir()).map(|m| m.uid()).unwrap_or(0)
+    }
+
+    /// Topmost directory of the filesystem containing `p`.
+    fn mount_top(p: &Path) -> Option<PathBuf> {
+        let parent = p.parent()?;
+        let dev = std::fs::metadata(parent).ok()?.dev();
+        let mut top = parent.to_path_buf();
+        while let Some(up) = top.parent() {
+            match std::fs::metadata(up) {
+                Ok(m) if m.dev() == dev => top = up.to_path_buf(),
+                _ => break,
+            }
+        }
+        Some(top)
+    }
+
+    fn parse_info(text: &str) -> Option<(String, String)> {
+        let mut path = None;
+        let mut date = String::new();
+        for line in text.lines() {
+            if let Some(v) = line.strip_prefix("Path=") {
+                path = gtk::glib::Uri::unescape_string(v, None::<&str>).map(|s| s.to_string());
+            } else if let Some(v) = line.strip_prefix("DeletionDate=") {
+                date = v.to_string();
+            }
+        }
+        Some((path?, date))
+    }
+
+    pub fn restore(originals: &[PathBuf]) -> usize {
+        let mut restored = 0;
+        for orig in originals {
+            if orig.exists() {
                 continue;
             }
-            let date = info.attribute_string("trash::deletion-date").map(|s| s.to_string()).unwrap_or_default();
-            let child = trash.child(info.name());
-            match found.get(&orig) {
-                Some((d, _)) if *d >= date => {}
-                _ => {
-                    found.insert(orig, (date, child));
+            // (deletion date, info file, trashed file); newest wins.
+            let mut best: Option<(String, PathBuf, PathBuf)> = None;
+            for (dir, top) in trash_dirs(orig) {
+                let Ok(rd) = std::fs::read_dir(dir.join("info")) else { continue };
+                for e in rd.flatten() {
+                    let info = e.path();
+                    if info.extension().is_none_or(|x| x != "trashinfo") {
+                        continue;
+                    }
+                    let Ok(text) = std::fs::read_to_string(&info) else { continue };
+                    let Some((path, date)) = parse_info(&text) else { continue };
+                    let full = match &top {
+                        Some(t) if !path.starts_with('/') => t.join(&path),
+                        _ => PathBuf::from(&path),
+                    };
+                    if full != *orig {
+                        continue;
+                    }
+                    let Some(stem) = info.file_stem() else { continue };
+                    let file = dir.join("files").join(stem);
+                    if best.as_ref().is_none_or(|(d, _, _)| date > *d) {
+                        best = Some((date, info.clone(), file));
+                    }
+                }
+            }
+            if let Some((_, info, file)) = best {
+                if std::fs::rename(&file, orig).is_ok() {
+                    let _ = std::fs::remove_file(info);
+                    restored += 1;
                 }
             }
         }
+        restored
     }
-    let mut n = 0;
-    for (orig, (_, child)) in found {
-        let dest = gio::File::for_path(&orig);
-        let (fut, _progress) = child.move_future(&dest, gio::FileCopyFlags::NOFOLLOW_SYMLINKS, glib::Priority::DEFAULT);
-        if fut.await.is_ok() {
-            n += 1;
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn info_parsing() {
+            let (p, d) =
+                parse_info("[Trash Info]\nPath=/home/u/My%20Pics/a.jpg\nDeletionDate=2026-09-24T10:00:00\n").unwrap();
+            assert_eq!(p, "/home/u/My Pics/a.jpg");
+            assert_eq!(d, "2026-09-24T10:00:00");
         }
     }
-    n
 }
 
 pub async fn delete_permanently(paths: &[PathBuf]) -> (Vec<PathBuf>, Vec<glib::Error>) {

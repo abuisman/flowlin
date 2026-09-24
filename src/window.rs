@@ -179,7 +179,8 @@ impl Window {
         split.set_max_sidebar_width(s.int("sidebar-width") as f64);
         split.set_sidebar_width_fraction(0.3);
         split.bind_property("show-sidebar", &sidebar_toggle, "active").bidirectional().sync_create().build();
-        s.bind("sidebar-visible", &split, "show-sidebar").build();
+        // Persist only user-initiated sidebar changes, not the viewer hiding it.
+        split.set_show_sidebar(s.boolean("sidebar-visible"));
 
         let toolbar = adw::ToolbarView::new();
         toolbar.add_top_bar(&header);
@@ -482,6 +483,14 @@ impl Window {
     fn setup_signals(&self) {
         let i = &self.0;
         let w = self.downgrade();
+        i.split.connect_show_sidebar_notify(move |split| {
+            if let Some(win) = upgrade(&w) {
+                if win.0.sidebar_before_viewer.get().is_none() {
+                    let _ = settings().set_boolean("sidebar-visible", split.shows_sidebar());
+                }
+            }
+        });
+        let w = self.downgrade();
         i.tab_view.connect_selected_page_notify(move |_| {
             if let Some(win) = upgrade(&w) {
                 *win.0.shown_folder.borrow_mut() = PathBuf::new();
@@ -489,6 +498,18 @@ impl Window {
                 if let Some(t) = win.active_tab() {
                     win.0.sidebar.reveal(&t.folder());
                     win.viewer_mode(t.viewer_open());
+                    // Keep keyboard focus in the visible tab (e.g. after closing one).
+                    let w = win.downgrade();
+                    glib::idle_add_local_once(move || {
+                        let Some(win) = upgrade(&w) else { return };
+                        let in_entry = gtk::prelude::GtkWindowExt::focus(&win.0.window)
+                            .is_some_and(|f| f.is::<gtk::Text>() || f.ancestor(gtk::Entry::static_type()).is_some());
+                        if !in_entry {
+                            if let Some(t) = win.active_tab() {
+                                t.focus_view();
+                            }
+                        }
+                    });
                 }
             }
         });

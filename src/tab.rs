@@ -524,8 +524,8 @@ impl Tab {
                         if first {
                             first = false;
                             tracing::debug!("first batch after {:?}", started.elapsed());
-                            if t.0.focus_after_load.get() {
-                                t.focus_view();
+                            if t.0.focus_after_load.get() && t.0.pending_select.borrow().is_none() {
+                                t.focus_first_item();
                             }
                         }
                         t.apply_pending_select();
@@ -799,6 +799,20 @@ impl Tab {
             }
             ViewMode::List => {
                 self.0.list.view.grab_focus();
+            }
+        }
+    }
+
+    /// Focus (not select) the first cell so the first arrow press moves.
+    fn focus_first_item(&self) {
+        match self.0.mode.get() {
+            ViewMode::Grid => self.0.grid.scroll_to(0, gtk::ListScrollFlags::FOCUS, None),
+            ViewMode::List => {
+                self.0.list.view.scroll_to(0, None::<&gtk::ColumnViewColumn>, gtk::ListScrollFlags::FOCUS, None)
+            }
+            ViewMode::Waterfall => {
+                self.0.waterfall.set_cursor(0, false, false);
+                self.0.waterfall.grab_focus();
             }
         }
     }

@@ -180,9 +180,15 @@ impl ThumbCell {
         imp.size.set(size);
         self.update_card_size();
         imp.name.set_visible(cfg.show_names.get());
-        let folder = self.item().map(|i| i.rel_dir()).unwrap_or_default();
         imp.folder.set_visible(cfg.show_folders.get());
-        imp.folder.set_label(if folder.is_empty() { "." } else { &folder });
+        if let Some(item) = self.item() {
+            // Files directly in the scanned folder show that folder's name.
+            let mut folder = item.rel_dir();
+            if folder.is_empty() {
+                folder = item.with_path(|p| p.parent().map(crate::util::file_name).unwrap_or_default());
+            }
+            imp.folder.set_label(&folder);
+        }
         if let Some(item) = self.item() {
             ThumbService::get().request(&item, cfg.thumb_px());
         }
