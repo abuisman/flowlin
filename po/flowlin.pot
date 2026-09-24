@@ -1,0 +1,556 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-24 15:21+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: src/app.rs:187
+msgid ""
+"A fast local image browser, modelled on FlowVision. No network access, no "
+"tracking, nothing remembered on disk."
+msgstr ""
+
+#: src/app.rs:211
+msgid "Appearance"
+msgstr ""
+
+#: src/app.rs:213
+msgid "Style"
+msgstr ""
+
+#: src/app.rs:215
+msgid "Follow System"
+msgstr ""
+
+#: src/app.rs:215
+msgid "Light"
+msgstr ""
+
+#: src/app.rs:215
+msgid "Dark"
+msgstr ""
+
+#: src/app.rs:222 src/window.rs:975
+msgid "Show File Names"
+msgstr ""
+
+#: src/app.rs:222
+msgid "Show Folder Under Name in Recursive Mode"
+msgstr ""
+
+#: src/app.rs:232
+msgid "Browsing"
+msgstr ""
+
+#: src/app.rs:234
+msgid "Single-Key Folder Navigation"
+msgstr ""
+
+#: src/app.rs:235
+msgid ""
+"W parent, S back, A/D previous/next folder with images, R recursive. When "
+"off, letters only jump to matching file names."
+msgstr ""
+
+#: src/app.rs:239 src/window.rs:974
+msgid "Show Hidden Files"
+msgstr ""
+
+#: src/app.rs:243
+msgid "Recursive Mode Stays on One File System"
+msgstr ""
+
+#: src/app.rs:247
+msgid "Recursive File Limit"
+msgstr ""
+
+#: src/app.rs:253
+msgid "Viewer"
+msgstr ""
+
+#: src/app.rs:255
+msgid "Slideshow Interval (Seconds)"
+msgstr ""
+
+#: src/app.rs:261
+msgid "Privacy & Memory"
+msgstr ""
+
+#: src/app.rs:263
+msgid ""
+"Thumbnails are kept in memory only and never written to disk. Flowlin does "
+"not remember which folders or files you opened."
+msgstr ""
+
+#: src/app.rs:266
+msgid "Thumbnail Memory (MB)"
+msgstr ""
+
+#: src/app.rs:371 src/tab.rs:1585
+msgid "Properties"
+msgstr ""
+
+#: src/app.rs:383 src/browser/list.rs:171 src/model/sort.rs:51
+#: src/model/sort.rs:65
+msgid "Name"
+msgstr ""
+
+#: src/app.rs:384 src/browser/list.rs:184
+msgid "Folder"
+msgstr ""
+
+#: src/app.rs:387 src/browser/list.rs:180
+msgid "Size"
+msgstr ""
+
+#: src/app.rs:389 src/browser/list.rs:182
+msgid "Type"
+msgstr ""
+
+#: src/app.rs:399 src/browser/list.rs:181
+msgid "Modified"
+msgstr ""
+
+#: src/app.rs:402
+msgid "Created"
+msgstr ""
+
+#: src/app.rs:408
+msgid "Image"
+msgstr ""
+
+#: src/app.rs:410 src/browser/list.rs:176
+msgid "Dimensions"
+msgstr ""
+
+#: src/app.rs:413
+msgid "Colour / Bit Depth"
+msgstr ""
+
+#: src/app.rs:417 src/browser/list.rs:183
+msgid "Rating"
+msgstr ""
+
+#: src/app.rs:421
+msgid "Tags"
+msgstr ""
+
+#: src/sidebar/mod.rs:308
+msgid "Favourites"
+msgstr ""
+
+#: src/sidebar/mod.rs:320
+msgid "Places"
+msgstr ""
+
+#: src/sidebar/mod.rs:322 src/tab.rs:300 src/window.rs:417
+msgid "Home"
+msgstr ""
+
+#: src/sidebar/mod.rs:328
+msgid "Pictures"
+msgstr ""
+
+#: src/sidebar/mod.rs:337 src/tab.rs:303 src/window.rs:417
+msgid "Computer"
+msgstr ""
+
+#: src/sidebar/mod.rs:359
+msgid "Devices"
+msgstr ""
+
+#: src/sidebar/mod.rs:517 src/tab.rs:1571
+msgid "Open"
+msgstr ""
+
+#: src/sidebar/mod.rs:518
+msgid "Open in New Tab"
+msgstr ""
+
+#: src/sidebar/mod.rs:519 src/tab.rs:1595 src/window.rs:115
+msgid "Open in File Manager"
+msgstr ""
+
+#: src/sidebar/mod.rs:523
+msgid "Remove from Favourites"
+msgstr ""
+
+#: src/sidebar/mod.rs:523
+msgid "Add to Favourites"
+msgstr ""
+
+#: src/sidebar/mod.rs:527 src/tab.rs:1590 src/window.rs:970
+msgid "New Folder…"
+msgstr ""
+
+#: src/sidebar/mod.rs:528 src/tab.rs:1581
+msgid "Rename…"
+msgstr ""
+
+#: src/sidebar/mod.rs:529 src/tab.rs:1582
+msgid "Move to Trash"
+msgstr ""
+
+#: src/tab.rs:164
+msgid "Loading…"
+msgstr ""
+
+#: src/tab.rs:169 src/tab.rs:655
+msgid "No Images in This Folder"
+msgstr ""
+
+#: src/tab.rs:170 src/tab.rs:1593 src/window.rs:973
+msgid "Include Subfolders"
+msgstr ""
+
+#: src/tab.rs:180
+msgid "Cannot Open Folder"
+msgstr ""
+
+#: src/tab.rs:184
+msgid "Filter by name, or rating:>=3"
+msgstr ""
+
+#: src/tab.rs:331
+msgid "image"
+msgid_plural "images"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/tab.rs:333
+msgid "of"
+msgstr ""
+
+#: src/tab.rs:338
+msgid "recursive"
+msgstr ""
+
+#: src/tab.rs:350
+msgid "Not a folder"
+msgstr ""
+
+#: src/tab.rs:421
+msgid "No next folder with images"
+msgstr ""
+
+#: src/tab.rs:423
+msgid "No previous folder with images"
+msgstr ""
+
+#: src/tab.rs:443
+msgid "No next sibling folder with images"
+msgstr ""
+
+#: src/tab.rs:539
+msgid "Showing first"
+msgstr ""
+
+#: src/tab.rs:539
+msgid "files"
+msgstr ""
+
+#: src/tab.rs:653
+msgid "No Images Here or in Subfolders"
+msgstr ""
+
+#: src/tab.rs:950
+msgid "Could not move to trash"
+msgstr ""
+
+#: src/tab.rs:956 src/window.rs:746
+msgid "moved to trash"
+msgstr ""
+
+#: src/tab.rs:958
+msgid "items moved to trash"
+msgstr ""
+
+#: src/tab.rs:961 src/tab.rs:1146 src/window.rs:747
+msgid "Undo"
+msgstr ""
+
+#: src/tab.rs:974
+msgid "Some files could not be restored"
+msgstr ""
+
+#: src/tab.rs:989 src/tab.rs:991
+msgid "Permanently delete"
+msgstr ""
+
+#: src/tab.rs:991
+msgid "items"
+msgstr ""
+
+#: src/tab.rs:993
+msgid "This cannot be undone."
+msgstr ""
+
+#: src/tab.rs:994 src/tab.rs:1674
+msgid "Cancel"
+msgstr ""
+
+#: src/tab.rs:995
+msgid "Delete"
+msgstr ""
+
+#: src/tab.rs:1043
+msgid "Ratings are not supported on this file system"
+msgstr ""
+
+#: src/tab.rs:1075
+msgid "item cut"
+msgid_plural "items cut"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/tab.rs:1077 src/tab.rs:1142
+msgid "item copied"
+msgid_plural "items copied"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/tab.rs:1143
+msgid "item moved"
+msgid_plural "items moved"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/tab.rs:1175 src/window.rs:714
+msgid "New Folder"
+msgstr ""
+
+#: src/tab.rs:1175 src/window.rs:714
+msgid "Create"
+msgstr ""
+
+#: src/tab.rs:1241
+msgid "Rating cleared"
+msgstr ""
+
+#: src/tab.rs:1243
+msgid "Rated"
+msgstr ""
+
+#: src/tab.rs:1246
+msgid "Could not save rating"
+msgstr ""
+
+#: src/tab.rs:1572
+msgid "Open With…"
+msgstr ""
+
+#: src/tab.rs:1573
+msgid "Show in File Manager"
+msgstr ""
+
+#: src/tab.rs:1576
+msgid "Cut"
+msgstr ""
+
+#: src/tab.rs:1577
+msgid "Copy"
+msgstr ""
+
+#: src/tab.rs:1578
+msgid "Copy Path"
+msgstr ""
+
+#: src/tab.rs:1589
+msgid "Paste"
+msgstr ""
+
+#: src/tab.rs:1594
+msgid "Refresh"
+msgstr ""
+
+#: src/tab.rs:1706
+msgid "Rename"
+msgstr ""
+
+#: src/tab.rs:1714
+msgid "Could Not Rename"
+msgstr ""
+
+#: src/tab.rs:1715
+msgid "OK"
+msgstr ""
+
+#: src/viewer/mod.rs:85
+msgid "This image cannot be displayed"
+msgstr ""
+
+#: src/viewer/mod.rs:368
+msgid "Slideshow"
+msgstr ""
+
+#: src/window.rs:71
+msgid "Toggle Sidebar (F9)"
+msgstr ""
+
+#: src/window.rs:76 src/window.rs:389
+msgid "Add to Favourites (Ctrl+D)"
+msgstr ""
+
+#: src/window.rs:81
+msgid "Back (Alt+Left)"
+msgstr ""
+
+#: src/window.rs:84
+msgid "Forward (Alt+Right)"
+msgstr ""
+
+#: src/window.rs:120
+msgid "Main Menu"
+msgstr ""
+
+#: src/window.rs:127
+msgid "Sort"
+msgstr ""
+
+#: src/window.rs:133
+msgid "Open Viewer (Enter)"
+msgstr ""
+
+#: src/window.rs:139
+msgid "Grid (Ctrl+1)"
+msgstr ""
+
+#: src/window.rs:140
+msgid "Waterfall (Ctrl+2)"
+msgstr ""
+
+#: src/window.rs:141
+msgid "List (Ctrl+3)"
+msgstr ""
+
+#: src/window.rs:154
+msgid "Include Subfolders (R)"
+msgstr ""
+
+#: src/window.rs:159
+msgid "Scanning…"
+msgstr ""
+
+#: src/window.rs:169
+msgid "New Tab (Ctrl+T)"
+msgstr ""
+
+#: src/window.rs:387
+msgid "Remove from Favourites (Ctrl+D)"
+msgstr ""
+
+#: src/window.rs:431
+msgid "Sibling Folders"
+msgstr ""
+
+#: src/window.rs:814
+msgid "Added to favourites"
+msgstr ""
+
+#: src/window.rs:814
+msgid "Removed from favourites"
+msgstr ""
+
+#: src/window.rs:961
+msgid "Descending"
+msgstr ""
+
+#: src/window.rs:969
+msgid "New Tab"
+msgstr ""
+
+#: src/window.rs:976
+msgid "Show Folder Under Name (Recursive)"
+msgstr ""
+
+#: src/window.rs:979
+msgid "Larger Thumbnails"
+msgstr ""
+
+#: src/window.rs:980
+msgid "Smaller Thumbnails"
+msgstr ""
+
+#: src/window.rs:981
+msgid "Thumbnail Size"
+msgstr ""
+
+#: src/window.rs:983
+msgid "Preferences"
+msgstr ""
+
+#: src/window.rs:984
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#: src/window.rs:985
+msgid "About Flowlin"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.desktop:3 data/eu.ronkatil.Flowlin.metainfo.xml:6
+msgid "Flowlin"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.desktop:4
+msgid "Image Browser"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.desktop:5 data/eu.ronkatil.Flowlin.metainfo.xml:10
+msgid "Browse folders of images quickly"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.desktop:10
+msgid "image;photo;picture;viewer;browser;thumbnail;gallery;"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:8
+msgid "Flowlin contributors"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:12
+msgid ""
+"Flowlin is a fast local image browser modelled on FlowVision. Pick a folder "
+"in the tree, see its images as thumbnails, and step through them full size "
+"with the arrow keys. Recursive mode shows every image below a folder in one "
+"grid."
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:19
+msgid "Grid, waterfall (masonry) and list layouts"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:20
+msgid "Full-size viewer with zoom, pan, slideshow and animated images"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:21
+msgid "Folder jumps with W/A/S/D keys and right-button mouse gestures"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:22
+msgid "Tabs, favourites, file management with undo"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:23
+msgid ""
+"Private by design: no network access, no thumbnail files on disk, nothing "
+"remembered about what you opened"
+msgstr ""
+
+#: data/eu.ronkatil.Flowlin.metainfo.xml:38
+msgid "First release: browser, viewer, recursive mode."
+msgstr ""

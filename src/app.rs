@@ -91,9 +91,8 @@ pub fn run() -> glib::ExitCode {
     let st = state.clone();
     app.connect_activate(move |_| {
         let w = st.window();
-        if w.active_tab().is_none() {
-            w.open_tab(&glib::home_dir());
-        }
+        // First launch opens Home; a second launch (single instance) adds a tab.
+        w.open_tab(&glib::home_dir());
         w.present();
     });
 

@@ -1,0 +1,9 @@
+src/app.rs
+src/browser/list.rs
+src/model/sort.rs
+src/sidebar/mod.rs
+src/tab.rs
+src/viewer/mod.rs
+src/window.rs
+data/eu.ronkatil.Flowlin.desktop
+data/eu.ronkatil.Flowlin.metainfo.xml
