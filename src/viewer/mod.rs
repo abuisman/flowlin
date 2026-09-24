@@ -496,6 +496,18 @@ impl Viewer {
     }
 
     fn update_hud(&self) {
+        self.update_hud_now();
+        // The zoom % depends on the canvas size, which is only known once
+        // the (just shown) viewer has been laid out.
+        let w = self.downgrade();
+        glib::idle_add_local_once(move || {
+            if let Some(v) = upgrade(&w) {
+                v.update_hud_now();
+            }
+        });
+    }
+
+    fn update_hud_now(&self) {
         let i = &self.0;
         let Some(item) = self.current() else { return };
         i.hud_name.set_label(&item.name());
