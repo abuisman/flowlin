@@ -151,14 +151,21 @@ fn install_frame_logger(w: &Window) {
 fn install_view_shortcuts(w: &Window) {
     let keys = gtk::EventControllerKey::new();
     let win = w.window().clone();
+    let window = w.clone();
     keys.connect_key_pressed(move |_, key, _, state| {
-        let Some(action) = view_only_shortcut(key, state) else { return glib::Propagation::Proceed };
         // Only when the focus is not inside a text entry.
-        if let Some(f) = gtk::prelude::GtkWindowExt::focus(&win) {
-            if f.is::<gtk::Text>() || f.is::<gtk::Entry>() || f.ancestor(gtk::Text::static_type()).is_some() {
-                return glib::Propagation::Proceed;
+        if crate::tab::text_entry_has_focus(&win) {
+            return glib::Propagation::Proceed;
+        }
+        // Folder keys (W/A/S/D/R) also work when the sidebar has focus.
+        let plain = !state
+            .intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK | gdk::ModifierType::SUPER_MASK);
+        if plain && matches!(key.to_lower(), gdk::Key::w | gdk::Key::a | gdk::Key::s | gdk::Key::d | gdk::Key::r) {
+            if let Some(t) = window.active_tab().filter(|t| !t.viewer_open()) {
+                return t.handle_view_key(key, state);
             }
         }
+        let Some(action) = view_only_shortcut(key, state) else { return glib::Propagation::Proceed };
         let name = action.trim_start_matches("win.");
         let _ = WidgetExt::activate_action(&win, &format!("win.{name}"), None);
         glib::Propagation::Stop
@@ -332,13 +339,13 @@ fn show_shortcuts(parent: Option<&gtk::Window>) {
         (
             "Viewer",
             &[
-                ("Previous / next image", "Left Right"),
-                ("Row above / below (as in the grid)", "Up Down"),
+                ("Previous / next image", "Left Right a d"),
+                ("Row above / below (as in the grid)", "Up Down w s"),
                 ("Close viewer", "Escape Return"),
                 ("Zoom in / out", "plus minus"),
                 ("100 % / fit / fill", "1 0 <Shift>f"),
                 ("Rotate (view only)", "r <Shift>r"),
-                ("Slideshow", "s"),
+                ("Slideshow", "p"),
                 ("Show info", "i"),
                 ("Rate 2–5 stars (Shift+1 for 1, Shift+0 clears)", "2 5"),
                 ("Move to trash", "Delete"),

@@ -636,6 +636,14 @@ impl Viewer {
             {
                 return glib::Propagation::Proceed;
             }
+            // W/A/S/D act as the arrow keys in the viewer.
+            let key = match key {
+                Key::w | Key::W if !ctrl => Key::Up,
+                Key::a | Key::A if !ctrl => Key::Left,
+                Key::s | Key::S if !ctrl => Key::Down,
+                Key::d | Key::D if !ctrl => Key::Right,
+                k => k,
+            };
             if let Some(m) = v.media() {
                 match key {
                     Key::space => {
@@ -691,7 +699,7 @@ impl Viewer {
                 Key::i | Key::I => v.toggle_hud(),
                 Key::r => v.0.canvas.rotate(1),
                 Key::R => v.0.canvas.rotate(-1),
-                Key::s | Key::S => v.toggle_slideshow(),
+                Key::p | Key::P => v.toggle_slideshow(),
                 Key::Delete | Key::KP_Delete if !shift => {
                     if let (Some(item), Some(f)) = (v.current(), v.0.on_trash.borrow().as_ref()) {
                         f(&item);

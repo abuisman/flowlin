@@ -1038,6 +1038,9 @@ impl Tab {
 
     /// Focus (not select) the first cell so the first arrow press moves.
     fn focus_first_item(&self) {
+        if self.0.model.n_items() == 0 {
+            return; // e.g. a deferred call after a quick folder change
+        }
         match self.0.mode.get() {
             ViewMode::Grid => self.0.grid.scroll_to(0, gtk::ListScrollFlags::FOCUS, None),
             ViewMode::List => {
@@ -1051,6 +1054,9 @@ impl Tab {
     }
 
     fn scroll_to(&self, pos: u32, focus: bool) {
+        if pos >= self.0.model.n_items() {
+            return;
+        }
         let flags = if focus { gtk::ListScrollFlags::FOCUS } else { gtk::ListScrollFlags::NONE };
         match self.0.mode.get() {
             ViewMode::Grid => self.0.grid.scroll_to(pos, flags, None),
@@ -1732,7 +1738,7 @@ impl Tab {
         }
     }
 
-    fn handle_view_key(&self, key: gdk::Key, state: gdk::ModifierType) -> glib::Propagation {
+    pub fn handle_view_key(&self, key: gdk::Key, state: gdk::ModifierType) -> glib::Propagation {
         use gdk::Key;
         if state
             .intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK | gdk::ModifierType::SUPER_MASK)
