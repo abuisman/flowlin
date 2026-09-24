@@ -348,6 +348,9 @@ impl Window {
             TabEvent::OpenInNewTab(p) => {
                 self.open_tab(&p);
             }
+            TabEvent::TreeKey(key) => {
+                self.0.sidebar.tree_key(key);
+            }
             TabEvent::CloseTab => {
                 if let Some(page) = self.page_for(tab) {
                     self.0.tab_view.close_page(&page);

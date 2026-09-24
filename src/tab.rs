@@ -68,6 +68,8 @@ pub enum TabEvent {
     /// A folder's subfolders changed (sidebar refresh).
     FoldersChanged(PathBuf),
     OpenInNewTab(PathBuf),
+    /// W/A/S/D pressed in the thumbnails: forwarded to the folder tree.
+    TreeKey(gdk::Key),
     /// The down-right gesture asks to close this tab.
     CloseTab,
 }
@@ -136,6 +138,13 @@ fn scrolled(child: &impl IsA<gtk::Widget>) -> gtk::ScrolledWindow {
     s
 }
 
+impl Inner {
+    /// Focus is somewhere outside this tab (e.g. the folder tree).
+    fn sidebar_has_focus(&self) -> bool {
+        self.root.root().and_then(|r| r.focus()).is_some_and(|f| !f.is_ancestor(&self.root))
+    }
+}
+
 impl Tab {
     pub fn new(folder: &Path) -> Tab {
         let model = BrowserModel::new();
@@ -154,6 +163,8 @@ impl Tab {
         });
 
         let stack = gtk::Stack::new();
+        // Holds keyboard focus while a folder loads (see reload()).
+        stack.set_focusable(true);
         stack.set_transition_type(gtk::StackTransitionType::None);
         let grid_scroll = scrolled(&grid);
         {
@@ -529,7 +540,15 @@ impl Tab {
             c.cancel();
         }
         i.viewer.close();
+        // GTK tracks the focused cell by position; while the new folder
+        // streams in, that position drifts and the view follows it. Park
+        // focus on the page container until loading has settled.
+        let refocus = self.view_has_focus();
+        if refocus {
+            i.stack.grab_focus();
+        }
         i.model.clear();
+        self.scroll_views_to_top();
         i.truncated.set(false);
         i.expect_items.set(false);
         *i.scan_error.borrow_mut() = None;
@@ -619,15 +638,11 @@ impl Tab {
                             first = false;
                             tracing::debug!("first batch after {:?}", started.elapsed());
                             if t.0.focus_after_load.get() && t.0.pending_select.borrow().is_none() {
-                                // Once the view has laid out its first cells.
-                                let w = t.downgrade();
-                                glib::idle_add_local_once(move || {
-                                    if let Some(t) = upgrade(&w) {
-                                        if !text_entry_has_focus(&t.0.root) && t.0.model.first_selected().is_none() {
-                                            t.focus_first_item();
-                                        }
-                                    }
-                                });
+                                // Hold focus on the page until the folder has loaded and
+                                // sorted; the first cell is focused then (see Done).
+                                if !text_entry_has_focus(&t.0.root) && !t.0.sidebar_has_focus() {
+                                    t.0.stack.grab_focus();
+                                }
                             }
                         }
                         t.apply_pending_select();
@@ -648,6 +663,22 @@ impl Tab {
                             }
                         }
                         t.apply_pending_select();
+                        // Incremental sorting can drag the view along with a
+                        // tracked item; start new folders at the top.
+                        if t.0.model.first_selected().is_none() && !t.viewer_open() {
+                            let w = t.downgrade();
+                            t.0.model.when_sorted(move || {
+                                let Some(t) = upgrade(&w) else { return };
+                                if t.0.model.first_selected().is_some() {
+                                    return;
+                                }
+                                t.scroll_views_to_top();
+                                let parked = t.0.stack.has_focus();
+                                if parked {
+                                    t.focus_first_item();
+                                }
+                            });
+                        }
                         if t.0.open_first_after_load.take() {
                             if t.0.model.n_items() > 0 {
                                 let w = t.downgrade();
@@ -1068,6 +1099,19 @@ impl Tab {
                 (0..n as i64).contains(&target).then_some(target as u32)
             }
             ViewMode::Waterfall => self.0.waterfall.neighbour(pos, 0, rows.signum()),
+        }
+    }
+
+    /// Scroll every view back to the top (new folder).
+    fn scroll_views_to_top(&self) {
+        for w in [
+            self.0.grid.clone().upcast::<gtk::Widget>(),
+            self.0.waterfall.clone().upcast(),
+            self.0.list.view.clone().upcast(),
+        ] {
+            if let Some(sw) = w.parent().and_downcast::<gtk::ScrolledWindow>() {
+                sw.vadjustment().set_value(0.0);
+            }
         }
     }
 
@@ -1815,20 +1859,9 @@ impl Tab {
         if !typing {
             if settings().boolean("single-key-navigation") {
                 match ch {
-                    'w' | 'W' => {
-                        self.go_up();
-                        return glib::Propagation::Stop;
-                    }
-                    's' | 'S' => {
-                        self.go_back();
-                        return glib::Propagation::Stop;
-                    }
-                    'a' | 'A' => {
-                        self.jump_folder(false);
-                        return glib::Propagation::Stop;
-                    }
-                    'd' | 'D' => {
-                        self.jump_folder(true);
+                    // W/A/S/D steer the folder tree like its arrow keys.
+                    'w' | 'W' | 'a' | 'A' | 's' | 'S' | 'd' | 'D' => {
+                        self.emit(TabEvent::TreeKey(key));
                         return glib::Propagation::Stop;
                     }
                     'r' | 'R' => {

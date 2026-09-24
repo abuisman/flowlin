@@ -165,6 +165,7 @@ pub struct Inner {
     current: RefCell<Option<PathBuf>>,
     on_open: RefCell<Option<OpenHandler>>,
     on_action: RefCell<Option<ActionHandler>>,
+    pending_open: RefCell<Option<glib::SourceId>>,
     volumes: gio::VolumeMonitor,
 }
 
@@ -201,6 +202,7 @@ impl Sidebar {
             current: Default::default(),
             on_open: Default::default(),
             on_action: Default::default(),
+            pending_open: Default::default(),
             volumes: gio::VolumeMonitor::get(),
         }));
 
@@ -562,7 +564,67 @@ impl Sidebar {
             }
         }
         self.0.selection.set_selected(pos as u32);
-        self.0.view.scroll_to(pos as u32, gtk::ListScrollFlags::FOCUS, None);
+        let flags = if self.0.view.has_focus() || self.0.view.focus_child().is_some() {
+            gtk::ListScrollFlags::FOCUS
+        } else {
+            gtk::ListScrollFlags::NONE
+        };
+        self.0.view.scroll_to(pos as u32, flags, None);
+    }
+
+    /// Arrow keys (and W/A/S/D) on the tree: Up/Down move to the previous /
+    /// next folder row, Right expands, Left collapses or goes to the parent.
+    /// Moving to another folder opens it in the current tab (after a short
+    /// pause, so holding a key does not start a scan for every row).
+    /// Also used by the thumbnail views, so W/A/S/D steer the tree there too.
+    pub fn tree_key(&self, key: gdk::Key) -> bool {
+        use gdk::Key;
+        let key = match key {
+            Key::w | Key::W => Key::Up,
+            Key::a | Key::A => Key::Left,
+            Key::s | Key::S => Key::Down,
+            Key::d | Key::D => Key::Right,
+            k => k,
+        };
+        let before = self.0.selection.selected();
+        match key {
+            Key::Up | Key::KP_Up => self.move_selection(-1),
+            Key::Down | Key::KP_Down => self.move_selection(1),
+            Key::Right | Key::KP_Right | Key::Left | Key::KP_Left => {
+                let Some(row) = self.0.tree.item(before).and_downcast::<gtk::TreeListRow>() else { return true };
+                if matches!(key, Key::Right | Key::KP_Right) {
+                    row.set_expanded(true);
+                } else if row.is_expanded() {
+                    row.set_expanded(false);
+                } else if let Some(parent) = row.parent() {
+                    let pos = parent.position();
+                    self.0.selection.set_selected(pos);
+                    self.0.view.scroll_to(pos, gtk::ListScrollFlags::NONE, None);
+                }
+            }
+            _ => return false,
+        }
+        let after = self.0.selection.selected();
+        if after != before {
+            if let Some(node) = self.node_at(after) {
+                self.open_soon(node.path());
+            }
+        }
+        true
+    }
+
+    fn open_soon(&self, path: PathBuf) {
+        if let Some(id) = self.0.pending_open.borrow_mut().take() {
+            id.remove();
+        }
+        let w = self.downgrade();
+        let id = glib::timeout_add_local_once(std::time::Duration::from_millis(150), move || {
+            if let Some(s) = upgrade(&w) {
+                s.0.pending_open.borrow_mut().take();
+                s.emit_open(path, false);
+            }
+        });
+        *self.0.pending_open.borrow_mut() = Some(id);
     }
 
     fn setup_keys(&self) {
@@ -576,24 +638,8 @@ impl Sidebar {
             if state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK) {
                 return glib::Propagation::Proceed;
             }
-            // W/A/S/D behave like the arrow keys.
-            let key = match key {
-                Key::w | Key::W => Key::Up,
-                Key::a | Key::A => Key::Left,
-                Key::s | Key::S => Key::Down,
-                Key::d | Key::D => Key::Right,
-                k => k,
-            };
-            match key {
-                Key::Up | Key::KP_Up => {
-                    s.move_selection(-1);
-                    return glib::Propagation::Stop;
-                }
-                Key::Down | Key::KP_Down => {
-                    s.move_selection(1);
-                    return glib::Propagation::Stop;
-                }
-                _ => {}
+            if s.tree_key(key) {
+                return glib::Propagation::Stop;
             }
             let sel = s.0.selection.selected();
             let Some(row) = s.0.tree.item(sel).and_downcast::<gtk::TreeListRow>() else {
@@ -603,18 +649,6 @@ impl Sidebar {
                 Key::space => {
                     if let Some(n) = row.item().and_downcast::<FolderNode>().filter(|n| !n.is_header()) {
                         s.emit_action(FolderAction::View, n.path());
-                    }
-                }
-                Key::Right | Key::KP_Right => {
-                    row.set_expanded(true);
-                }
-                Key::Left | Key::KP_Left => {
-                    if row.is_expanded() {
-                        row.set_expanded(false);
-                    } else if let Some(parent) = row.parent() {
-                        let pos = parent.position();
-                        s.0.selection.set_selected(pos);
-                        s.0.view.scroll_to(pos, gtk::ListScrollFlags::FOCUS, None);
                     }
                 }
                 Key::F2 => {
