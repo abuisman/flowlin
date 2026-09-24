@@ -1,0 +1,41 @@
+{
+  "id": "eu.ronkatil.Flowlin",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "50",
+  "sdk": "org.gnome.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "flowlin",
+  "finish-args": [
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--device=dri",
+    "--filesystem=host",
+    "--talk-name=org.freedesktop.FileManager1"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/flowlin/cargo"
+    }
+  },
+  "modules": [
+    {
+      "name": "flowlin",
+      "buildsystem": "simple",
+      "build-options": {
+        "//": "Local builds fetch crates; Flathub needs generated cargo-sources.json instead (see README).",
+        "build-args": ["--share=network"]
+      },
+      "build-commands": [
+        "cargo build --release --locked",
+        "./build-aux/install.sh /app"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": ".."
+        }
+      ]
+    }
+  ]
+}

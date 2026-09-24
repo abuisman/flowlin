@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Flowlin
+GenericName=Image Browser
+Comment=Browse folders of images quickly
+Exec=flowlin %U
+Icon=eu.ronkatil.Flowlin
+Terminal=false
+Categories=Graphics;Viewer;GTK;
+Keywords=image;photo;picture;viewer;browser;thumbnail;gallery;
+MimeType=inode/directory;image/jpeg;image/png;image/gif;image/webp;image/bmp;image/tiff;image/svg+xml;image/x-icon;image/x-portable-anymap;image/x-tga;image/qoi;image/jxl;image/avif;image/heif;image/heic;
+StartupNotify=true
+DBusActivatable=false
+SingleMainWindow=true

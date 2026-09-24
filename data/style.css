@@ -1,0 +1,43 @@
+/* Thumbnail cards: rounded, hairline border in light mode, subtle elevation. */
+.thumb-card {
+  border-radius: 6px;
+  background-color: alpha(currentColor, 0.06);
+  box-shadow: 0 0 0 1px alpha(black, 0.08), 0 1px 3px alpha(black, 0.10);
+}
+.thumb-picture { opacity: 0; transition: opacity 160ms ease-out; }
+.thumb-picture.loaded { opacity: 1; }
+.thumb-picture.instant { transition: none; }
+.thumb-stars {
+  margin: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  color: #ffd54a;
+  background-color: alpha(black, 0.55);
+}
+.thumb-name { margin-top: 2px; }
+
+gridview.flowlin-grid { padding: 6px; }
+gridview.flowlin-grid > child {
+  padding: 8px;
+  margin: 2px;
+  border-radius: 8px;
+}
+
+waterfallview > .thumb-cell { border-radius: 8px; }
+waterfallview > .thumb-cell.selected { background-color: alpha(@accent_bg_color, 0.25); }
+waterfallview > .thumb-cell.cursor { outline: 2px solid alpha(@accent_color, 0.6); outline-offset: -2px; }
+waterfallview:not(:focus-within) > .thumb-cell.cursor { outline: none; }
+
+.viewer, .viewer imagecanvas { background-color: black; }
+.viewer-error { color: alpha(white, 0.7); }
+.viewer-hud { padding: 8px 16px; border-radius: 12px; }
+
+.breadcrumbs button { padding-left: 6px; padding-right: 6px; min-height: 24px; }
+.breadcrumbs .crumb-current { font-weight: bold; }
+.sidebar-heading { font-weight: bold; font-size: 0.85em; margin-top: 6px; }
+
+/* Dark mode: no hairline, a little lift instead. */
+@media (prefers-color-scheme: dark) {
+  .thumb-card { box-shadow: 0 1px 4px alpha(black, 0.4); }
+}

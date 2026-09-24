@@ -1,0 +1,47 @@
+[package]
+name = "flowlin"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.92"
+license = "GPL-3.0-or-later"
+description = "Fast local image browser for Linux, modelled on FlowVision"
+default-run = "flowlin"
+
+[lib]
+name = "flowlin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "flowlin"
+path = "src/main.rs"
+
+[[bin]]
+name = "flowlin-bench"
+path = "src/bin/bench.rs"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_5"] }
+gio = { version = "0.22", features = ["v2_76"] }
+glib = { version = "0.22", features = ["v2_76"] }
+image = { version = "0.25", default-features = false, features = ["gif", "png", "jpeg", "webp", "bmp", "tiff", "ico", "pnm", "tga", "qoi"] }
+jpeg-decoder = { version = "0.3", default-features = false }
+rayon = "1.10"
+walkdir = "2.5"
+infer = "0.19"
+kamadak-exif = "0.6"
+async-channel = "2.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+xattr = "1.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+
+[profile.dev.package."*"]
+opt-level = 2

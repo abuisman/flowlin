@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>eu.ronkatil.Flowlin</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Flowlin</name>
+  <developer id="eu.ronkatil">
+    <name>Flowlin contributors</name>
+  </developer>
+  <summary>Browse folders of images quickly</summary>
+  <description>
+    <p>
+      Flowlin is a fast local image browser modelled on FlowVision. Pick a
+      folder in the tree, see its images as thumbnails, and step through them
+      full size with the arrow keys. Recursive mode shows every image below a
+      folder in one grid.
+    </p>
+    <ul>
+      <li>Grid, waterfall (masonry) and list layouts</li>
+      <li>Full-size viewer with zoom, pan, slideshow and animated images</li>
+      <li>Folder jumps with W/A/S/D keys and right-button mouse gestures</li>
+      <li>Tabs, favourites, file management with undo</li>
+      <li>Private by design: no network access, no thumbnail files on disk,
+        nothing remembered about what you opened</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">eu.ronkatil.Flowlin.desktop</launchable>
+  <provides>
+    <binary>flowlin</binary>
+  </provides>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-09-24">
+      <description><p>First release: browser, viewer, recursive mode.</p></description>
+    </release>
+  </releases>
+</component>

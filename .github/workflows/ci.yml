@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["fedora:latest", "ubuntu:24.04", "debian:13"]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - name: System dependencies (Fedora)
+        if: startsWith(matrix.image, 'fedora')
+        run: |
+          dnf install -y gcc git curl gtk4-devel libadwaita-devel gdk-pixbuf2-devel \
+            glib2-devel xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
+      - name: System dependencies (Debian/Ubuntu)
+        if: "!startsWith(matrix.image, 'fedora')"
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git curl pkg-config \
+            libgtk-4-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev libglib2.0-dev-bin \
+            xvfb xauth dbus dbus-x11 libgl1-mesa-dri
+      - uses: actions/checkout@v4
+      - name: Rust toolchain (rustup; distro cargo is older than the MSRV)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal -c rustfmt,clippy
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo build --release
+      - name: GUI smoke test
+        run: |
+          cargo run --release --example gen_fixtures -- /tmp/fixtures 12
+          FLOWLIN_SMOKE_TEST=1 GDK_BACKEND=x11 timeout 120 \
+            xvfb-run -a dbus-run-session -- ./target/release/flowlin /tmp/fixtures | tee smoke.log
+          grep -q "SMOKE ok" smoke.log
+
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: flowlin.flatpak
+          manifest-path: build-aux/eu.ronkatil.Flowlin.json
+          cache-key: flatpak-builder-${{ github.sha }}

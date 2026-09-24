@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Only UI preferences are stored. By design nothing records which folders
+     or files were opened (no last folder, no history, no recent files). -->
+<schemalist gettext-domain="flowlin">
+  <schema id="eu.ronkatil.Flowlin" path="/eu/ronkatil/Flowlin/">
+    <key name="view-mode" type="s">
+      <choices><choice value="grid"/><choice value="waterfall"/><choice value="list"/></choices>
+      <default>'grid'</default>
+      <summary>Thumbnail layout</summary>
+    </key>
+    <key name="sort-key" type="s">
+      <choices>
+        <choice value="name"/><choice value="modified"/><choice value="created"/><choice value="size"/>
+        <choice value="type"/><choice value="dimensions"/><choice value="random"/><choice value="folder"/>
+      </choices>
+      <default>'name'</default>
+      <summary>Sort key</summary>
+    </key>
+    <key name="sort-descending" type="b">
+      <default>false</default>
+      <summary>Sort descending</summary>
+    </key>
+    <key name="thumbnail-size" type="i">
+      <range min="0" max="4"/>
+      <default>2</default>
+      <summary>Thumbnail size step (0–4)</summary>
+    </key>
+    <key name="show-hidden" type="b">
+      <default>false</default>
+      <summary>Show hidden files and folders</summary>
+    </key>
+    <key name="show-names" type="b">
+      <default>true</default>
+      <summary>Show file names under thumbnails</summary>
+    </key>
+    <key name="show-folder-labels" type="b">
+      <default>true</default>
+      <summary>Show the relative folder under thumbnails in recursive mode</summary>
+    </key>
+    <key name="sidebar-visible" type="b">
+      <default>true</default>
+      <summary>Sidebar visible</summary>
+    </key>
+    <key name="sidebar-width" type="i">
+      <range min="160" max="480"/>
+      <default>240</default>
+      <summary>Sidebar width in pixels</summary>
+    </key>
+    <key name="window-width" type="i">
+      <default>1100</default>
+      <summary>Window width</summary>
+    </key>
+    <key name="window-height" type="i">
+      <default>720</default>
+      <summary>Window height</summary>
+    </key>
+    <key name="window-maximized" type="b">
+      <default>false</default>
+      <summary>Window maximized</summary>
+    </key>
+    <key name="color-scheme" type="s">
+      <choices><choice value="follow"/><choice value="light"/><choice value="dark"/></choices>
+      <default>'follow'</default>
+      <summary>Colour scheme</summary>
+    </key>
+    <key name="slideshow-interval" type="u">
+      <range min="1" max="600"/>
+      <default>3</default>
+      <summary>Slideshow interval in seconds</summary>
+    </key>
+    <key name="recursive-cap" type="u">
+      <range min="1000" max="10000000"/>
+      <default>200000</default>
+      <summary>Maximum number of files in recursive mode</summary>
+    </key>
+    <key name="same-device" type="b">
+      <default>false</default>
+      <summary>Recursive mode stays on the same filesystem</summary>
+    </key>
+    <key name="single-key-navigation" type="b">
+      <default>true</default>
+      <summary>W/A/S/D/R single-key shortcuts in the grid</summary>
+      <description>When off, all letters go to type-ahead search.</description>
+    </key>
+    <key name="thumbnail-memory" type="u">
+      <range min="32" max="4096"/>
+      <default>256</default>
+      <summary>In-memory thumbnail cache size in MB (thumbnails are never written to disk)</summary>
+    </key>
+    <key name="favourites" type="as">
+      <default>[]</default>
+      <summary>Favourite folders (explicitly starred by the user)</summary>
+    </key>
+  </schema>
+</schemalist>
