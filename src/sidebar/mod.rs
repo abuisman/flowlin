@@ -21,6 +21,8 @@ use crate::i18n::tr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderAction {
     Open,
+    /// Open the folder and show its first image in the viewer (Space).
+    View,
     OpenRecursive,
     OpenInNewTab,
     OpenInFileManager,
@@ -542,8 +544,31 @@ impl Sidebar {
         pop.popup();
     }
 
+    /// Move the selection to the next folder row above/below (skipping
+    /// section headers), like the arrow keys do.
+    fn move_selection(&self, delta: i32) {
+        let n = self.0.tree.n_items() as i64;
+        let mut pos = self.0.selection.selected() as i64;
+        if self.0.selection.selected() == gtk::INVALID_LIST_POSITION {
+            pos = if delta > 0 { -1 } else { n };
+        }
+        loop {
+            pos += delta as i64;
+            if pos < 0 || pos >= n {
+                return;
+            }
+            if self.node_at(pos as u32).is_some() {
+                break;
+            }
+        }
+        self.0.selection.set_selected(pos as u32);
+        self.0.view.scroll_to(pos as u32, gtk::ListScrollFlags::FOCUS, None);
+    }
+
     fn setup_keys(&self) {
         let keys = gtk::EventControllerKey::new();
+        // Capture phase: rows would otherwise consume Space themselves.
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let w = self.downgrade();
         keys.connect_key_pressed(move |_, key, _, state| {
             use gdk::Key;
@@ -551,11 +576,35 @@ impl Sidebar {
             if state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK) {
                 return glib::Propagation::Proceed;
             }
+            // W/A/S/D behave like the arrow keys.
+            let key = match key {
+                Key::w | Key::W => Key::Up,
+                Key::a | Key::A => Key::Left,
+                Key::s | Key::S => Key::Down,
+                Key::d | Key::D => Key::Right,
+                k => k,
+            };
+            match key {
+                Key::Up | Key::KP_Up => {
+                    s.move_selection(-1);
+                    return glib::Propagation::Stop;
+                }
+                Key::Down | Key::KP_Down => {
+                    s.move_selection(1);
+                    return glib::Propagation::Stop;
+                }
+                _ => {}
+            }
             let sel = s.0.selection.selected();
             let Some(row) = s.0.tree.item(sel).and_downcast::<gtk::TreeListRow>() else {
                 return glib::Propagation::Proceed;
             };
             match key {
+                Key::space => {
+                    if let Some(n) = row.item().and_downcast::<FolderNode>().filter(|n| !n.is_header()) {
+                        s.emit_action(FolderAction::View, n.path());
+                    }
+                }
                 Key::Right | Key::KP_Right => {
                     row.set_expanded(true);
                 }

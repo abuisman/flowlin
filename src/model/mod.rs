@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use gtk::gio;
+use gtk::glib;
 use gtk::prelude::*;
 
 use crate::fs::scan::FileEntry;
@@ -169,6 +170,28 @@ impl BrowserModel {
             }
         }
         self.sorter.changed(gtk::SorterChange::Different);
+    }
+
+    /// Run `f` once the (incremental) sort has placed every item.
+    pub fn when_sorted(&self, f: impl FnOnce() + 'static) {
+        if self.sort_model.pending() == 0 {
+            f();
+            return;
+        }
+        let f = std::cell::RefCell::new(Some(f));
+        let id: Rc<std::cell::RefCell<Option<glib::SignalHandlerId>>> = Default::default();
+        let id2 = id.clone();
+        let handler = self.sort_model.connect_pending_notify(move |m| {
+            if m.pending() == 0 {
+                if let Some(f) = f.borrow_mut().take() {
+                    f();
+                }
+                if let Some(h) = id2.borrow_mut().take() {
+                    m.disconnect(h);
+                }
+            }
+        });
+        *id.borrow_mut() = Some(handler);
     }
 
     /// Sort again after sort-relevant data changed for many items.

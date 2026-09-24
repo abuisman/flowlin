@@ -500,10 +500,15 @@ impl Viewer {
         // The zoom % depends on the canvas size, which is only known once
         // the (just shown) viewer has been laid out.
         let w = self.downgrade();
-        glib::idle_add_local_once(move || {
+        self.0.canvas.add_tick_callback(move |c, _| {
+            // Wait for a frame in which the canvas has its size.
+            if c.width() == 0 {
+                return glib::ControlFlow::Continue;
+            }
             if let Some(v) = upgrade(&w) {
                 v.update_hud_now();
             }
+            glib::ControlFlow::Break
         });
     }
 
@@ -670,11 +675,11 @@ impl Viewer {
                     // Arrows work inside the video: seek and volume.
                     // Page Up/Down (or the mouse side buttons) switch files.
                     Key::Left | Key::KP_Left => {
-                        v.seek_by(if shift { -30 } else { -5 });
+                        v.seek_by(if shift { -10 } else { -5 });
                         return glib::Propagation::Stop;
                     }
                     Key::Right | Key::KP_Right => {
-                        v.seek_by(if shift { 30 } else { 5 });
+                        v.seek_by(if shift { 10 } else { 5 });
                         return glib::Propagation::Stop;
                     }
                     Key::Up | Key::KP_Up => {

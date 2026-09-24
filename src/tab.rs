@@ -106,6 +106,8 @@ pub struct Inner {
     /// Select (and optionally open) this file once it shows up in the model.
     pending_select: RefCell<Option<(PathBuf, bool)>>,
     focus_after_load: Cell<bool>,
+    /// Open the viewer on the first image when the current scan finishes.
+    open_first_after_load: Cell<bool>,
     typeahead: RefCell<String>,
     typeahead_at: Cell<Option<Instant>>,
     xattr_warned: Cell<bool>,
@@ -257,6 +259,7 @@ impl Tab {
             mode: Cell::new(ViewMode::from_id(&s.string("view-mode"))),
             pending_select: Default::default(),
             focus_after_load: Cell::new(true),
+            open_first_after_load: Cell::new(false),
             typeahead: Default::default(),
             typeahead_at: Cell::new(None),
             xattr_warned: Cell::new(false),
@@ -466,6 +469,23 @@ impl Tab {
         }
     }
 
+    /// Open `path` and show its first image in the viewer once loaded.
+    pub fn open_first_image(&self, path: &Path) {
+        let path = normalize(path);
+        if path == self.folder() && !self.is_scanning() {
+            if self.0.model.n_items() > 0 {
+                self.open_viewer_at(0);
+            } else {
+                self.toast_text(&tr("No images in this folder"));
+            }
+            return;
+        }
+        self.navigate(&path, true, true);
+        if self.folder() == path {
+            self.0.open_first_after_load.set(true);
+        }
+    }
+
     /// Open `path` with subfolders included (a single scan).
     pub fn navigate_recursive(&self, path: &Path) {
         let changed = self.set_recursive_flag(true);
@@ -628,10 +648,25 @@ impl Tab {
                             }
                         }
                         t.apply_pending_select();
+                        if t.0.open_first_after_load.take() {
+                            if t.0.model.n_items() > 0 {
+                                let w = t.downgrade();
+                                t.0.model.when_sorted(move || {
+                                    if let Some(t) = upgrade(&w) {
+                                        if t.0.model.n_items() > 0 && !t.viewer_open() {
+                                            t.open_viewer_at(0);
+                                        }
+                                    }
+                                });
+                            } else {
+                                t.toast_text(&tr("No images in this folder"));
+                            }
+                        }
                         t.after_scan();
                         t.emit(TabEvent::Changed);
                     }
                     ScanMsg::Error(e) => {
+                        t.0.open_first_after_load.set(false);
                         t.0.scanning.set(false);
                         *t.0.scan_error.borrow_mut() = Some(e);
                         t.update_page();

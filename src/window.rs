@@ -687,6 +687,11 @@ impl Window {
                     t.navigate(&path, true, true);
                 }
             }
+            FolderAction::View => {
+                if let Some(t) = self.active_tab() {
+                    t.open_first_image(&path);
+                }
+            }
             FolderAction::OpenRecursive => {
                 if let Some(t) = self.active_tab() {
                     t.navigate_recursive(&path);
