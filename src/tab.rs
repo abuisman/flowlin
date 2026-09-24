@@ -68,8 +68,8 @@ pub enum TabEvent {
     /// A folder's subfolders changed (sidebar refresh).
     FoldersChanged(PathBuf),
     OpenInNewTab(PathBuf),
-    /// W/A/S/D pressed in the thumbnails: forwarded to the folder tree.
-    TreeKey(gdk::Key),
+    /// Tab pressed in the thumbnails: move keyboard focus to the folder tree.
+    FocusSidebar,
     /// The down-right gesture asks to close this tab.
     CloseTab,
 }
@@ -108,8 +108,8 @@ pub struct Inner {
     /// Select (and optionally open) this file once it shows up in the model.
     pending_select: RefCell<Option<(PathBuf, bool)>>,
     focus_after_load: Cell<bool>,
-    /// Open the viewer on the first image when the current scan finishes.
-    open_first_after_load: Cell<bool>,
+    /// Select the first image when the current scan finishes.
+    select_first_after_load: Cell<bool>,
     typeahead: RefCell<String>,
     typeahead_at: Cell<Option<Instant>>,
     xattr_warned: Cell<bool>,
@@ -270,7 +270,7 @@ impl Tab {
             mode: Cell::new(ViewMode::from_id(&s.string("view-mode"))),
             pending_select: Default::default(),
             focus_after_load: Cell::new(true),
-            open_first_after_load: Cell::new(false),
+            select_first_after_load: Cell::new(false),
             typeahead: Default::default(),
             typeahead_at: Cell::new(None),
             xattr_warned: Cell::new(false),
@@ -480,12 +480,13 @@ impl Tab {
         }
     }
 
-    /// Open `path` and show its first image in the viewer once loaded.
-    pub fn open_first_image(&self, path: &Path) {
+    /// Open `path` (if needed) and move keyboard focus to its first image,
+    /// selected; a further Space then opens it in the viewer.
+    pub fn focus_first_image(&self, path: &Path) {
         let path = normalize(path);
         if path == self.folder() && !self.is_scanning() {
             if self.0.model.n_items() > 0 {
-                self.open_viewer_at(0);
+                self.select_and_reveal(0);
             } else {
                 self.toast_text(&tr("No images in this folder"));
             }
@@ -493,7 +494,41 @@ impl Tab {
         }
         self.navigate(&path, true, true);
         if self.folder() == path {
-            self.0.open_first_after_load.set(true);
+            self.0.select_first_after_load.set(true);
+        }
+    }
+
+    /// W/A/S/D in the thumbnails: move like the arrow keys.
+    fn move_cursor(&self, key: gdk::Key) {
+        use gdk::Key;
+        let n = self.0.model.n_items();
+        if n == 0 {
+            return;
+        }
+        let Some(cur) = self.0.model.first_selected() else {
+            self.select_and_reveal(0);
+            return;
+        };
+        let (dx, dy) = match key {
+            Key::w | Key::W => (0, -1),
+            Key::s | Key::S => (0, 1),
+            Key::a | Key::A => (-1, 0),
+            _ => (1, 0),
+        };
+        let target = if dx != 0 {
+            match self.0.mode.get() {
+                ViewMode::List => None,
+                ViewMode::Waterfall => self.0.waterfall.neighbour(cur, dx, 0),
+                ViewMode::Grid => {
+                    let t = cur as i64 + dx as i64;
+                    (0..n as i64).contains(&t).then_some(t as u32)
+                }
+            }
+        } else {
+            self.row_neighbour(cur, dy)
+        };
+        if let Some(t) = target {
+            self.select_and_reveal(t);
         }
     }
 
@@ -548,6 +583,11 @@ impl Tab {
             i.stack.grab_focus();
         }
         i.model.clear();
+        // Re-attach so the views drop their scroll anchor / focus tracker,
+        // which would otherwise drift while the new folder streams in.
+        i.grid.set_model(None::<&gtk::SelectionModel>);
+        i.list.view.set_model(None::<&gtk::SelectionModel>);
+        self.attach_model();
         self.scroll_views_to_top();
         i.truncated.set(false);
         i.expect_items.set(false);
@@ -679,13 +719,13 @@ impl Tab {
                                 }
                             });
                         }
-                        if t.0.open_first_after_load.take() {
+                        if t.0.select_first_after_load.take() {
                             if t.0.model.n_items() > 0 {
                                 let w = t.downgrade();
                                 t.0.model.when_sorted(move || {
                                     if let Some(t) = upgrade(&w) {
                                         if t.0.model.n_items() > 0 && !t.viewer_open() {
-                                            t.open_viewer_at(0);
+                                            t.select_and_reveal(0);
                                         }
                                     }
                                 });
@@ -697,7 +737,7 @@ impl Tab {
                         t.emit(TabEvent::Changed);
                     }
                     ScanMsg::Error(e) => {
-                        t.0.open_first_after_load.set(false);
+                        t.0.select_first_after_load.set(false);
                         t.0.scanning.set(false);
                         *t.0.scan_error.borrow_mut() = Some(e);
                         t.update_page();
@@ -1082,7 +1122,8 @@ impl Tab {
         let mut rows: std::collections::HashMap<i32, u32> = Default::default();
         let mut child = grid.first_child();
         while let Some(c) = child {
-            if c.is_visible() && c.css_name() == "child" {
+            // Only laid-out cells: GridView also keeps unmapped pooled ones.
+            if c.is_mapped() && c.is_child_visible() && c.css_name() == "child" {
                 if let Some(b) = c.compute_bounds(grid) {
                     *rows.entry(b.y().round() as i32).or_default() += 1;
                 }
@@ -1115,6 +1156,17 @@ impl Tab {
 
     /// Scroll every view back to the top (new folder).
     fn scroll_views_to_top(&self) {
+        // Move the views' scroll anchor too; setting the adjustment alone is
+        // undone when the anchored item moves.
+        if self.0.model.n_items() > 0 {
+            match self.0.mode.get() {
+                ViewMode::Grid => self.0.grid.scroll_to(0, gtk::ListScrollFlags::NONE, None),
+                ViewMode::List => {
+                    self.0.list.view.scroll_to(0, None::<&gtk::ColumnViewColumn>, gtk::ListScrollFlags::NONE, None)
+                }
+                ViewMode::Waterfall => {}
+            }
+        }
         for w in [
             self.0.grid.clone().upcast::<gtk::Widget>(),
             self.0.waterfall.clone().upcast(),
@@ -1131,6 +1183,7 @@ impl Tab {
         if self.0.model.n_items() == 0 {
             return; // e.g. a deferred call after a quick folder change
         }
+        self.view_widget().grab_focus();
         match self.0.mode.get() {
             ViewMode::Grid => self.0.grid.scroll_to(0, gtk::ListScrollFlags::FOCUS, None),
             ViewMode::List => {
@@ -1146,6 +1199,10 @@ impl Tab {
     fn scroll_to(&self, pos: u32, focus: bool) {
         if pos >= self.0.model.n_items() {
             return;
+        }
+        if focus {
+            // scroll_to(FOCUS) only moves focus within an already focused view.
+            self.view_widget().grab_focus();
         }
         let flags = if focus { gtk::ListScrollFlags::FOCUS } else { gtk::ListScrollFlags::NONE };
         match self.0.mode.get() {
@@ -1845,6 +1902,11 @@ impl Tab {
                 self.open_viewer();
                 return glib::Propagation::Stop;
             }
+            // Tab / Shift+Tab: back to the folder tree.
+            Key::Tab | Key::ISO_Left_Tab | Key::KP_Tab => {
+                self.emit(TabEvent::FocusSidebar);
+                return glib::Propagation::Stop;
+            }
             Key::BackSpace => {
                 if typing {
                     self.0.typeahead.borrow_mut().pop();
@@ -1870,9 +1932,9 @@ impl Tab {
         if !typing {
             if settings().boolean("single-key-navigation") {
                 match ch {
-                    // W/A/S/D steer the folder tree like its arrow keys.
+                    // W/A/S/D move through the thumbnails like the arrow keys.
                     'w' | 'W' | 'a' | 'A' | 's' | 'S' | 'd' | 'D' => {
-                        self.emit(TabEvent::TreeKey(key));
+                        self.move_cursor(key);
                         return glib::Propagation::Stop;
                     }
                     'r' | 'R' => {

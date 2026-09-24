@@ -21,7 +21,7 @@ use crate::i18n::tr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderAction {
     Open,
-    /// Open the folder and show its first image in the viewer (Space).
+    /// Open the folder and focus its first image (Space).
     View,
     OpenRecursive,
     OpenInNewTab,
@@ -166,6 +166,7 @@ pub struct Inner {
     on_open: RefCell<Option<OpenHandler>>,
     on_action: RefCell<Option<ActionHandler>>,
     pending_open: RefCell<Option<glib::SourceId>>,
+    on_leave: RefCell<Option<Box<dyn Fn()>>>,
     volumes: gio::VolumeMonitor,
 }
 
@@ -203,6 +204,7 @@ impl Sidebar {
             on_open: Default::default(),
             on_action: Default::default(),
             pending_open: Default::default(),
+            on_leave: Default::default(),
             volumes: gio::VolumeMonitor::get(),
         }));
 
@@ -277,6 +279,21 @@ impl Sidebar {
 
     pub fn connect_open(&self, f: impl Fn(PathBuf, bool) + 'static) {
         *self.0.on_open.borrow_mut() = Some(Box::new(f));
+    }
+
+    /// Tab pressed in the tree: the window moves focus to the thumbnails.
+    pub fn connect_leave(&self, f: impl Fn() + 'static) {
+        *self.0.on_leave.borrow_mut() = Some(Box::new(f));
+    }
+
+    /// Give keyboard focus to the selected folder row.
+    pub fn focus_selected(&self) {
+        let sel = self.0.selection.selected();
+        // scroll_to(FOCUS) only moves focus within an already focused list.
+        self.0.view.grab_focus();
+        if sel != gtk::INVALID_LIST_POSITION {
+            self.0.view.scroll_to(sel, gtk::ListScrollFlags::FOCUS, None);
+        }
     }
 
     pub fn connect_action(&self, f: impl Fn(FolderAction, PathBuf) + 'static) {
@@ -576,7 +593,6 @@ impl Sidebar {
     /// next folder row, Right expands, Left collapses or goes to the parent.
     /// Moving to another folder opens it in the current tab (after a short
     /// pause, so holding a key does not start a scan for every row).
-    /// Also used by the thumbnail views, so W/A/S/D steer the tree there too.
     pub fn tree_key(&self, key: gdk::Key) -> bool {
         use gdk::Key;
         let key = match key {
@@ -637,6 +653,12 @@ impl Sidebar {
             let Some(s) = upgrade(&w) else { return glib::Propagation::Proceed };
             if state.intersects(gdk::ModifierType::CONTROL_MASK | gdk::ModifierType::ALT_MASK) {
                 return glib::Propagation::Proceed;
+            }
+            if matches!(key, Key::Tab | Key::ISO_Left_Tab | Key::KP_Tab) {
+                if let Some(f) = s.0.on_leave.borrow().as_ref() {
+                    f();
+                }
+                return glib::Propagation::Stop;
             }
             if s.tree_key(key) {
                 return glib::Propagation::Stop;

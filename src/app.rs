@@ -257,7 +257,7 @@ fn show_preferences(parent: Option<&gtk::Window>) {
     browse.set_title(&tr("Browsing"));
     let nav = adw::SwitchRow::new();
     nav.set_title(&tr("Single-Key Folder Navigation"));
-    nav.set_subtitle(&tr("W/A/S/D steer the folder tree like its arrow keys, R toggles subfolders. When off, letters only jump to matching file names."));
+    nav.set_subtitle(&tr("W/A/S/D work like the arrow keys everywhere, R toggles subfolders. When off, letters only jump to matching file names."));
     s.bind("single-key-navigation", &nav, "active").build();
     browse.add(&nav);
     let hidden = adw::SwitchRow::new();
@@ -304,8 +304,9 @@ fn show_shortcuts(parent: Option<&gtk::Window>) {
             &[
                 ("Parent folder", "<Alt>Up BackSpace"),
                 ("Back / forward", "<Alt>Left <Alt>Right"),
-                ("Folder tree: previous / next folder", "w s"),
-                ("Folder tree: collapse (or parent) / expand", "a d"),
+                ("Folder tree / thumbnails: move like the arrow keys", "w a s d"),
+                ("Switch between folder tree and thumbnails", "Tab"),
+                ("Folder tree: show the folder's images", "space"),
                 ("Include subfolders (recursive)", "r <Ctrl><Shift>r"),
                 ("Edit location", "<Ctrl>l"),
                 ("Toggle favourite", "<Ctrl>d"),

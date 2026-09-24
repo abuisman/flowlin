@@ -348,8 +348,9 @@ impl Window {
             TabEvent::OpenInNewTab(p) => {
                 self.open_tab(&p);
             }
-            TabEvent::TreeKey(key) => {
-                self.0.sidebar.tree_key(key);
+            TabEvent::FocusSidebar => {
+                self.0.split.set_show_sidebar(true);
+                self.0.sidebar.focus_selected();
             }
             TabEvent::CloseTab => {
                 if let Some(page) = self.page_for(tab) {
@@ -559,6 +560,12 @@ impl Window {
             }
         });
         let w = self.downgrade();
+        i.sidebar.connect_leave(move || {
+            if let Some(t) = upgrade(&w).and_then(|w| w.active_tab()) {
+                t.focus_view();
+            }
+        });
+        let w = self.downgrade();
         i.sidebar.connect_action(move |action, path| {
             if let Some(win) = upgrade(&w) {
                 win.folder_action(action, path);
@@ -684,7 +691,7 @@ impl Window {
             }
             FolderAction::View => {
                 if let Some(t) = self.active_tab() {
-                    t.open_first_image(&path);
+                    t.focus_first_image(&path);
                 }
             }
             FolderAction::OpenRecursive => {
