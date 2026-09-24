@@ -200,6 +200,11 @@ impl Viewer {
         &self.0.root
     }
 
+    /// Give keyboard focus to the viewer (after it was moved).
+    pub fn focus(&self) {
+        self.0.canvas.grab_focus();
+    }
+
     pub fn is_open(&self) -> bool {
         self.0.open.get()
     }

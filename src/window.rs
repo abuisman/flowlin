@@ -1,7 +1,7 @@
 //! Main window: header bar, tab strip, sidebar split view and window actions.
 //! Actions act on the active tab.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
@@ -21,7 +21,6 @@ use crate::tab::{Tab, TabEvent};
 pub struct Inner {
     pub window: adw::ApplicationWindow,
     toasts: adw::ToastOverlay,
-    toolbar: adw::ToolbarView,
     split: adw::OverlaySplitView,
     tab_view: adw::TabView,
     tab_bar: adw::TabBar,
@@ -40,7 +39,10 @@ pub struct Inner {
     spinner: gtk::Spinner,
     shown_folder: RefCell<PathBuf>,
     /// Sidebar visibility before the viewer took over the window.
-    sidebar_before_viewer: Cell<Option<bool>>,
+    /// Window-wide layer the open viewer is moved into, so it covers the
+    /// sidebar and bars without changing the thumbnail layout behind it.
+    viewer_host: gtk::Overlay,
+    hosted: RefCell<Option<Tab>>,
 }
 
 #[derive(Clone)]
@@ -190,7 +192,9 @@ impl Window {
         toolbar.set_content(Some(&split));
         toolbar.set_top_bar_style(adw::ToolbarStyle::Raised);
         let toasts = adw::ToastOverlay::new();
-        toasts.set_child(Some(&toolbar));
+        let viewer_host = gtk::Overlay::new();
+        viewer_host.set_child(Some(&toolbar));
+        toasts.set_child(Some(&viewer_host));
         window.set_content(Some(&toasts));
 
         // Collapse the sidebar into an overlay on narrow windows.
@@ -205,7 +209,6 @@ impl Window {
         let w = Window(Rc::new(Inner {
             window,
             toasts,
-            toolbar,
             split,
             tab_view,
             tab_bar,
@@ -222,7 +225,8 @@ impl Window {
             sort_button,
             spinner,
             shown_folder: Default::default(),
-            sidebar_before_viewer: Cell::new(None),
+            viewer_host,
+            hosted: Default::default(),
         }));
         w.setup_actions();
         w.setup_signals();
@@ -335,12 +339,12 @@ impl Window {
             }
             TabEvent::ViewerOpened => {
                 if active {
-                    self.viewer_mode(true);
+                    self.sync_viewer();
                 }
             }
             TabEvent::ViewerClosed => {
                 if active {
-                    self.viewer_mode(false);
+                    self.sync_viewer();
                 }
             }
             TabEvent::Toast(t) => self.toast(t),
@@ -360,20 +364,29 @@ impl Window {
         }
     }
 
-    /// The viewer covers the whole window: hide sidebar and bars.
-    fn viewer_mode(&self, on: bool) {
+    /// Show the active tab's open viewer above the whole window (sidebar
+    /// and bars stay where they are, so the grid keeps its columns); give
+    /// any other hosted viewer back to its tab.
+    fn sync_viewer(&self) {
         let i = &self.0;
-        if on {
-            if i.sidebar_before_viewer.get().is_none() {
-                i.sidebar_before_viewer.set(Some(i.split.shows_sidebar()));
+        let active = self.active_tab();
+        let hosted = i.hosted.borrow().clone();
+        if let Some(h) = hosted {
+            if active.as_ref() != Some(&h) || !h.viewer_open() {
+                let w = h.0.viewer.widget();
+                i.viewer_host.remove_overlay(w);
+                h.0.root.add_overlay(w);
+                i.hosted.borrow_mut().take();
             }
-            i.split.set_show_sidebar(false);
-            i.toolbar.set_reveal_top_bars(false);
-        } else {
-            if let Some(v) = i.sidebar_before_viewer.take() {
-                i.split.set_show_sidebar(v);
+        }
+        if let Some(t) = active {
+            if t.viewer_open() && i.hosted.borrow().is_none() {
+                let w = t.0.viewer.widget();
+                t.0.root.remove_overlay(w);
+                i.viewer_host.add_overlay(w);
+                *i.hosted.borrow_mut() = Some(t.clone());
+                t.0.viewer.focus();
             }
-            i.toolbar.set_reveal_top_bars(true);
         }
     }
 
@@ -406,9 +419,7 @@ impl Window {
         i.sort_button.set_label(&format!("{} {arrow}", st.key.short_label()));
         self.set_action_state("recursive", &tab.is_recursive().to_variant());
         self.set_action_state("view-mode", &tab.view_mode().id().to_variant());
-        if tab.viewer_open() != i.sidebar_before_viewer.get().is_some() {
-            self.viewer_mode(tab.viewer_open());
-        }
+        self.sync_viewer();
     }
 
     fn set_action_state(&self, name: &str, v: &glib::Variant) {
@@ -499,7 +510,7 @@ impl Window {
                 win.update_header();
                 if let Some(t) = win.active_tab() {
                     win.0.sidebar.reveal(&t.folder());
-                    win.viewer_mode(t.viewer_open());
+                    win.sync_viewer();
                     // Keep keyboard focus in the visible tab (e.g. after closing one).
                     let w = win.downgrade();
                     glib::idle_add_local_once(move || {
