@@ -212,6 +212,8 @@ impl WaterfallView {
         let w = v.downgrade();
         let h1 = selection.connect_items_changed(move |_, _, _, _| {
             if let Some(v) = w.upgrade() {
+                v.imp().cursor.set(None);
+                v.imp().anchor.set(None);
                 if v.imp().active.get() {
                     v.reset_children();
                     v.invalidate();
@@ -478,7 +480,7 @@ impl WaterfallView {
     }
 
     /// Visually nearest cell in a direction (waterfall-aware navigation).
-    fn neighbour(&self, from: u32, dx: i32, dy: i32) -> Option<u32> {
+    pub fn neighbour(&self, from: u32, dx: i32, dy: i32) -> Option<u32> {
         let rects = self.imp().rects.borrow();
         let r = *rects.get(from as usize)?;
         let ncols = rects.iter().map(|r| r.col).max().unwrap_or(0) + 1;

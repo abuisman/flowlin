@@ -10,6 +10,7 @@
 //! slow to be the first choice for thumbnails of common formats.
 
 pub mod exif;
+pub mod video;
 
 use std::io::BufReader;
 use std::path::Path;
@@ -155,6 +156,9 @@ fn kind(path: &Path) -> Kind {
 
 /// A thumbnail that fits in `size`×`size`, EXIF orientation applied.
 pub fn thumbnail(path: &Path, size: i32) -> Result<Thumb, String> {
+    if formats::is_video(path) {
+        return video::thumbnail(path, size);
+    }
     let first = match kind(path) {
         Kind::Jpeg => thumbnail_jpeg(path, size as u32),
         Kind::Native => thumbnail_image_crate(path, size as u32),

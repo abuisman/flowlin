@@ -91,6 +91,8 @@ impl Window {
         crumbs_scroll.set_policy(gtk::PolicyType::External, gtk::PolicyType::Never);
         crumbs_scroll.set_propagate_natural_width(true);
         crumbs_scroll.set_child(Some(&crumbs));
+        // Keep the deepest segment visible whenever the space shrinks.
+        crumbs_scroll.hadjustment().connect_changed(|adj| adj.set_value(adj.upper() - adj.page_size()));
         let count = gtk::Label::new(None);
         count.add_css_class("dim-label");
         count.add_css_class("numeric");
@@ -239,7 +241,11 @@ impl Window {
         self.0.window.present();
         let w = self.downgrade();
         glib::idle_add_local_once(move || {
-            if let Some(t) = upgrade(&w).and_then(|w| w.active_tab()) {
+            let Some(win) = upgrade(&w) else { return };
+            if crate::tab::text_entry_has_focus(&win.0.window) {
+                return;
+            }
+            if let Some(t) = win.active_tab() {
                 t.focus_view();
             }
         });
@@ -429,28 +435,28 @@ impl Window {
                 mb.add_css_class("flat");
                 mb.add_css_class("crumb-current");
                 mb.set_tooltip_text(Some(&tr("Sibling Folders")));
-                let path = c.path.clone();
-                mb.set_create_popup_func(move |mb| {
-                    let menu = gio::Menu::new();
-                    if let Some(parent) = path.parent() {
-                        let show_hidden = settings().boolean("show-hidden");
-                        for sib in crate::fs::navigate::subdirs(parent, show_hidden).into_iter().take(300) {
+                // Sibling folders are listed on a worker, never on the UI thread.
+                let menu = gio::Menu::new();
+                mb.set_menu_model(Some(&menu));
+                if let Some(parent) = c.path.parent().map(Path::to_path_buf) {
+                    let show_hidden = settings().boolean("show-hidden");
+                    glib::spawn_future_local(async move {
+                        let sibs = gio::spawn_blocking(move || crate::fs::navigate::subdirs(&parent, show_hidden))
+                            .await
+                            .unwrap_or_default();
+                        for sib in sibs.into_iter().take(300) {
                             let item = gio::MenuItem::new(Some(&crate::util::file_name(&sib)), None);
-                            item.set_action_and_target_value(
-                                Some("win.goto"),
-                                Some(&sib.to_string_lossy().to_variant()),
-                            );
+                            item.set_action_and_target_value(Some("win.goto"), Some(&path_uri(&sib).to_variant()));
                             menu.append_item(&item);
                         }
-                    }
-                    mb.set_menu_model(Some(&menu));
-                });
+                    });
+                }
                 i.crumbs.append(&mb);
             } else {
                 let b = gtk::Button::with_label(&c.label);
                 b.add_css_class("flat");
                 b.set_action_name(Some("win.goto"));
-                b.set_action_target_value(Some(&c.path.to_string_lossy().to_variant()));
+                b.set_action_target_value(Some(&path_uri(&c.path).to_variant()));
                 i.crumbs.append(&b);
             }
         }
@@ -502,9 +508,7 @@ impl Window {
                     let w = win.downgrade();
                     glib::idle_add_local_once(move || {
                         let Some(win) = upgrade(&w) else { return };
-                        let in_entry = gtk::prelude::GtkWindowExt::focus(&win.0.window)
-                            .is_some_and(|f| f.is::<gtk::Text>() || f.ancestor(gtk::Entry::static_type()).is_some());
-                        if !in_entry {
+                        if !crate::tab::text_entry_has_focus(&win.0.window) {
                             if let Some(t) = win.active_tab() {
                                 t.focus_view();
                             }
@@ -617,7 +621,7 @@ impl Window {
                 "thumbnail-size" => tabs.iter().for_each(|t| t.set_thumb_size(crate::settings::thumb_size())),
                 "show-names" => tabs.iter().for_each(|t| t.set_show_names(s.boolean("show-names"))),
                 "show-folder-labels" => tabs.iter().for_each(|t| t.set_show_folder_labels(s.boolean(key))),
-                "show-hidden" | "same-device" | "recursive-cap" => tabs.iter().for_each(|t| t.reload()),
+                "show-hidden" | "same-device" | "recursive-cap" | "show-videos" => tabs.iter().for_each(|t| t.reload()),
                 "sort-key" | "sort-descending" => {
                     let k = SortKey::from_id(&s.string("sort-key"));
                     let d = s.boolean("sort-descending");
@@ -681,6 +685,11 @@ impl Window {
             FolderAction::Open => {
                 if let Some(t) = self.active_tab() {
                     t.navigate(&path, true, true);
+                }
+            }
+            FolderAction::OpenRecursive => {
+                if let Some(t) = self.active_tab() {
+                    t.navigate_recursive(&path);
                 }
             }
             FolderAction::OpenInNewTab => {
@@ -882,9 +891,11 @@ impl Window {
         let goto = gio::SimpleAction::new("goto", Some(glib::VariantTy::STRING));
         let w = self.downgrade();
         goto.connect_activate(move |_, v| {
-            let (Some(win), Some(p)) = (upgrade(&w), v.and_then(|v| v.get::<String>())) else { return };
+            let (Some(win), Some(uri)) = (upgrade(&w), v.and_then(|v| v.get::<String>())) else { return };
+            // Targets are file:// URIs so non-UTF-8 names survive.
+            let Some(p) = gio::File::for_uri(&uri).path() else { return };
             if let Some(t) = win.active_tab() {
-                t.navigate(Path::new(&p), true, true);
+                t.navigate(&p, true, true);
             }
         });
         win.add_action(&goto);
@@ -918,6 +929,7 @@ impl Window {
         win.add_action(&sort_key);
         win.add_action(&s.create_action("sort-descending"));
         win.add_action(&s.create_action("show-hidden"));
+        win.add_action(&s.create_action("show-videos"));
         win.add_action(&s.create_action("show-names"));
         win.add_action(&s.create_action("show-folder-labels"));
 
@@ -934,6 +946,10 @@ impl Window {
         });
         win.add_action(&recursive);
     }
+}
+
+fn path_uri(p: &Path) -> String {
+    gio::File::for_path(p).uri().to_string()
 }
 
 /// Folder path under a point in the sidebar list.
@@ -972,6 +988,7 @@ fn main_menu() -> gio::Menu {
     let s2 = gio::Menu::new();
     s2.append(Some(&tr("Include Subfolders")), Some("win.recursive"));
     s2.append(Some(&tr("Show Hidden Files")), Some("win.show-hidden"));
+    s2.append(Some(&tr("Show Videos")), Some("win.show-videos"));
     s2.append(Some(&tr("Show File Names")), Some("win.show-names"));
     s2.append(Some(&tr("Show Folder Under Name (Recursive)")), Some("win.show-folder-labels"));
     menu.append_section(None, &s2);

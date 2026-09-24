@@ -26,6 +26,9 @@ gio = { version = "0.22", features = ["v2_76"] }
 glib = { version = "0.22", features = ["v2_76"] }
 image = { version = "0.25", default-features = false, features = ["gif", "png", "jpeg", "webp", "bmp", "tiff", "ico", "pnm", "tga", "qoi"] }
 jpeg-decoder = { version = "0.3", default-features = false }
+gst = { package = "gstreamer", version = "0.25" }
+gst-app = { package = "gstreamer-app", version = "0.25" }
+gst-video = { package = "gstreamer-video", version = "0.25" }
 rayon = "1.10"
 walkdir = "2.5"
 infer = "0.19"

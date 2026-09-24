@@ -58,6 +58,8 @@ impl BrowserModel {
         });
         let filter_model = gtk::FilterListModel::new(Some(store.clone()), Some(filter.clone()));
         let sort_model = gtk::SortListModel::new(Some(filter_model.clone()), Some(sorter.clone()));
+        // Sort in time slices so 100k-item folders never block a frame.
+        sort_model.set_incremental(true);
         let selection = gtk::MultiSelection::new(Some(sort_model.clone()));
         Self {
             store,
@@ -167,6 +169,20 @@ impl BrowserModel {
             }
         }
         self.sorter.changed(gtk::SorterChange::Different);
+    }
+
+    /// Sort again after sort-relevant data changed for many items.
+    pub fn resort(&self) {
+        self.sorter.changed(gtk::SorterChange::Different);
+    }
+
+    /// Filter again (e.g. after ratings were loaded).
+    pub fn refilter(&self) {
+        self.filter.changed(gtk::FilterChange::Different);
+    }
+
+    pub fn needs_ratings(&self) -> bool {
+        self.filter_spec.borrow().rating.is_some()
     }
 
     pub fn filter_text(&self) -> String {

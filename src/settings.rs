@@ -35,26 +35,36 @@ pub fn thumb_size() -> i32 {
     crate::config::THUMB_SIZES[i]
 }
 
-pub fn favourites() -> Vec<String> {
-    settings().strv("favourites").iter().map(|s| s.to_string()).collect()
+/// Favourite folders. Stored as `file://` URIs so any byte sequence in a
+/// name survives; plain paths from older settings are accepted too.
+pub fn favourites() -> Vec<std::path::PathBuf> {
+    settings().strv("favourites").iter().filter_map(|s| entry_to_path(s.as_str())).collect()
+}
+
+fn entry_to_path(s: &str) -> Option<std::path::PathBuf> {
+    if s.starts_with("file://") {
+        gtk::gio::File::for_uri(s).path()
+    } else {
+        Some(std::path::PathBuf::from(s))
+    }
 }
 
 pub fn is_favourite(path: &std::path::Path) -> bool {
-    let p = path.to_string_lossy();
-    favourites().iter().any(|f| *f == p)
+    favourites().iter().any(|f| f == path)
 }
 
 pub fn toggle_favourite(path: &std::path::Path) -> bool {
-    let p = path.to_string_lossy().into_owned();
     let mut favs = favourites();
-    let now = if let Some(i) = favs.iter().position(|f| *f == p) {
+    let now = if let Some(i) = favs.iter().position(|f| f == path) {
         favs.remove(i);
         false
     } else {
-        favs.push(p);
+        favs.push(path.to_path_buf());
         true
     };
-    let refs: Vec<&str> = favs.iter().map(|s| s.as_str()).collect();
+    let uris: Vec<String> =
+        favs.iter().map(|p| gtk::prelude::FileExt::uri(&gtk::gio::File::for_path(p)).to_string()).collect();
+    let refs: Vec<&str> = uris.iter().map(|s| s.as_str()).collect();
     let _ = settings().set_strv("favourites", refs.as_slice());
     now
 }

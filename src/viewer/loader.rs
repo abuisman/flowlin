@@ -29,7 +29,7 @@ struct Inner {
     pool: rayon::ThreadPool,
     tx: async_channel::Sender<(PathBuf, i64, Result<Full, String>)>,
     cache: RefCell<VecDeque<(PathBuf, i64, LoadResult)>>,
-    in_flight: RefCell<HashSet<PathBuf>>,
+    in_flight: RefCell<HashSet<(PathBuf, i64)>>,
     on_loaded: RefCell<Option<LoadedHandler>>,
 }
 
@@ -79,7 +79,7 @@ impl Loader {
         if self.0.cache.borrow().iter().any(|(p, m, _)| p == path && *m == mtime) {
             return;
         }
-        if !self.0.in_flight.borrow_mut().insert(path.to_path_buf()) {
+        if !self.0.in_flight.borrow_mut().insert((path.to_path_buf(), mtime)) {
             return;
         }
         let tx = self.0.tx.clone();
@@ -96,7 +96,7 @@ impl Loader {
     }
 
     fn finish(&self, path: PathBuf, mtime: i64, res: Result<Full, String>) {
-        self.0.in_flight.borrow_mut().remove(&path);
+        self.0.in_flight.borrow_mut().remove(&(path.clone(), mtime));
         let loaded: LoadResult = res.map(|full| {
             let bytes = full.byte_size();
             Rc::new(match full {

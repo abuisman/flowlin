@@ -96,6 +96,9 @@ impl ImageItem {
     pub fn with_rel_dir<R>(&self, f: impl FnOnce(&str) -> R) -> R {
         f(&self.imp().rel_dir.borrow())
     }
+    pub fn is_video(&self) -> bool {
+        self.with_path(crate::fs::formats::is_video)
+    }
     pub fn size(&self) -> u64 {
         self.imp().size.get()
     }

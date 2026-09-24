@@ -29,6 +29,10 @@
       <default>false</default>
       <summary>Show hidden files and folders</summary>
     </key>
+    <key name="show-videos" type="b">
+      <default>true</default>
+      <summary>List video files alongside images</summary>
+    </key>
     <key name="show-names" type="b">
       <default>true</default>
       <summary>Show file names under thumbnails</summary>

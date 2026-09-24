@@ -61,9 +61,13 @@ impl Default for ViewConfig {
 impl ViewConfig {
     pub fn register(&self, cell: &ThumbCell) {
         let mut cells = self.cells.borrow_mut();
-        cells.retain(|w| w.upgrade().is_some());
-        cells.push(glib::WeakRef::new());
-        cells.last().unwrap().set(Some(cell));
+        // Prune dead entries only occasionally: amortised O(1).
+        if cells.len() >= 64 && cells.len().is_power_of_two() {
+            cells.retain(|w| w.upgrade().is_some());
+        }
+        let w = glib::WeakRef::new();
+        w.set(Some(cell));
+        cells.push(w);
     }
 
     /// Re-apply size / label settings to every live grid cell.

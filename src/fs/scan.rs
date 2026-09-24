@@ -50,6 +50,8 @@ pub struct ScanOptions {
     pub show_hidden: bool,
     pub same_device: bool,
     pub cap: usize,
+    /// Include video files.
+    pub videos: bool,
 }
 
 #[derive(Debug)]
@@ -161,7 +163,7 @@ fn list(root: &Path, opts: ScanOptions, cancel: &Cancel, b: &mut Batcher) -> std
         }
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue };
-        if !formats::is_image(&path, true) {
+        if !formats::is_media(&path, true, opts.videos) {
             continue;
         }
         if let Some(md) = file_metadata(&path, ft) {
@@ -207,7 +209,7 @@ fn walk(root: &Path, opts: ScanOptions, cancel: &Cancel, b: &mut Batcher) -> std
             continue;
         }
         let path = entry.path();
-        if !formats::is_image(path, true) {
+        if !formats::is_media(path, true, opts.videos) {
             continue;
         }
         if let Some(md) = file_metadata(path, ft) {
@@ -247,7 +249,7 @@ mod tests {
     }
 
     fn opts(recursive: bool) -> ScanOptions {
-        ScanOptions { recursive, show_hidden: false, same_device: false, cap: 200_000 }
+        ScanOptions { recursive, show_hidden: false, same_device: false, cap: 200_000, videos: false }
     }
 
     #[test]

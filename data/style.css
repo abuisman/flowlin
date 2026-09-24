@@ -16,6 +16,13 @@
   background-color: alpha(black, 0.55);
 }
 .thumb-name { margin-top: 2px; }
+.thumb-play {
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 999px;
+  color: white;
+  background-color: alpha(black, 0.55);
+}
 
 gridview.flowlin-grid { padding: 6px; }
 gridview.flowlin-grid > child {
@@ -32,6 +39,7 @@ waterfallview:not(:focus-within) > .thumb-cell.cursor { outline: none; }
 .viewer, .viewer imagecanvas { background-color: black; }
 .viewer-error { color: alpha(white, 0.7); }
 .viewer-hud { padding: 8px 16px; border-radius: 12px; }
+.viewer-controls { padding: 6px 12px; border-radius: 12px; }
 
 .breadcrumbs button { padding-left: 6px; padding-right: 6px; min-height: 24px; }
 .breadcrumbs .crumb-current { font-weight: bold; }

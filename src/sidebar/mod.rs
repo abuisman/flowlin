@@ -21,6 +21,7 @@ use crate::i18n::tr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderAction {
     Open,
+    OpenRecursive,
     OpenInNewTab,
     OpenInFileManager,
     ToggleFavourite,
@@ -30,8 +31,9 @@ pub enum FolderAction {
 }
 
 impl FolderAction {
-    const ALL: [(FolderAction, &'static str); 7] = [
+    const ALL: [(FolderAction, &'static str); 8] = [
         (FolderAction::Open, "open"),
+        (FolderAction::OpenRecursive, "open-recursive"),
         (FolderAction::OpenInNewTab, "open-tab"),
         (FolderAction::OpenInFileManager, "open-fm"),
         (FolderAction::ToggleFavourite, "favourite"),
@@ -306,8 +308,7 @@ impl Sidebar {
         let favs = crate::settings::favourites();
         if !favs.is_empty() {
             nodes.push(FolderNode::header(&tr("Favourites")));
-            for f in favs {
-                let p = PathBuf::from(&f);
+            for p in favs {
                 nodes.push(FolderNode::new(
                     NodeKind::Place,
                     &p,
@@ -360,7 +361,8 @@ impl Sidebar {
             nodes.extend(mounts);
         }
         self.0.roots.splice(0, self.0.roots.n_items(), &nodes);
-        if let Some(p) = self.0.current.borrow().clone() {
+        let current = self.0.current.borrow().clone();
+        if let Some(p) = current {
             self.reveal(&p);
         }
     }
@@ -515,6 +517,7 @@ impl Sidebar {
         let menu = gio::Menu::new();
         let s1 = gio::Menu::new();
         s1.append(Some(&tr("Open")), Some("folder.open"));
+        s1.append(Some(&tr("Open with Subfolders")), Some("folder.open-recursive"));
         s1.append(Some(&tr("Open in New Tab")), Some("folder.open-tab"));
         s1.append(Some(&tr("Open in File Manager")), Some("folder.open-fm"));
         menu.append_section(None, &s1);

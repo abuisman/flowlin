@@ -141,6 +141,7 @@ impl ListView {
             let li = obj.downcast_ref::<gtk::ListItem>().unwrap();
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
             let thumb = ThumbCell::new(false);
+            thumb.apply_size(&c);
             c.register(&thumb);
             row.append(&thumb);
             let name: Formatter = Box::new(|i: &ImageItem| i.name());

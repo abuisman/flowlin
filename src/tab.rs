@@ -17,7 +17,7 @@ use crate::browser::{grid, ThumbCell, ViewConfig, ViewMode};
 use crate::fs::ops::{self, Transfer};
 use crate::fs::scan::{self, Cancel, FileEntry, ScanMsg, ScanOptions};
 use crate::i18n::{tr, trn};
-use crate::model::{BrowserModel, ImageItem, SortKey};
+use crate::model::{BrowserModel, ImageItem, SortKey, ThumbState};
 use crate::settings::settings;
 use crate::util::format_count;
 use crate::viewer::Viewer;
@@ -100,6 +100,7 @@ pub struct Inner {
     scan_error: RefCell<Option<String>>,
     scan_cancel: RefCell<Option<Cancel>>,
     dims_cancel: RefCell<Option<Cancel>>,
+    ratings_cancel: RefCell<Option<Cancel>>,
     monitor: RefCell<Option<gio::FileMonitor>>,
     mode: Cell<ViewMode>,
     /// Select (and optionally open) this file once it shows up in the model.
@@ -152,7 +153,12 @@ impl Tab {
 
         let stack = gtk::Stack::new();
         stack.set_transition_type(gtk::StackTransitionType::None);
-        stack.add_named(&scrolled(&grid), Some("grid"));
+        let grid_scroll = scrolled(&grid);
+        {
+            let (g, c) = (grid.clone(), cfg.clone());
+            grid_scroll.hadjustment().connect_changed(move |adj| grid::fit_columns(&g, adj.page_size(), &c));
+        }
+        stack.add_named(&grid_scroll, Some("grid"));
         stack.add_named(&scrolled(&waterfall), Some("waterfall"));
         stack.add_named(&scrolled(&list.view), Some("list"));
 
@@ -246,6 +252,7 @@ impl Tab {
             scan_error: Default::default(),
             scan_cancel: Default::default(),
             dims_cancel: Default::default(),
+            ratings_cancel: Default::default(),
             monitor: Default::default(),
             mode: Cell::new(ViewMode::from_id(&s.string("view-mode"))),
             pending_select: Default::default(),
@@ -406,6 +413,7 @@ impl Tab {
     /// A / D: previous / next folder that contains images (depth-first).
     pub fn jump_folder(&self, forward: bool) {
         let start = self.folder();
+        let origin = start.clone();
         let show_hidden = settings().boolean("show-hidden");
         let (tx, rx) = async_channel::bounded(1);
         std::thread::spawn(move || {
@@ -415,6 +423,9 @@ impl Tab {
         glib::spawn_future_local(async move {
             let Ok(res) = rx.recv().await else { return };
             let Some(t) = upgrade(&w) else { return };
+            if t.folder() != origin {
+                return; // the user moved on while we searched
+            }
             match res {
                 Some(p) => t.navigate(&p, true, true),
                 None => t.toast_text(&if forward {
@@ -429,6 +440,7 @@ impl Tab {
     /// Next sibling folder with images (up-right gesture).
     pub fn jump_sibling(&self) {
         let start = self.folder();
+        let origin = start.clone();
         let show_hidden = settings().boolean("show-hidden");
         let (tx, rx) = async_channel::bounded(1);
         std::thread::spawn(move || {
@@ -438,6 +450,9 @@ impl Tab {
         glib::spawn_future_local(async move {
             let Ok(res) = rx.recv().await else { return };
             let Some(t) = upgrade(&w) else { return };
+            if t.folder() != origin {
+                return;
+            }
             match res {
                 Some(p) => t.navigate(&p, true, true),
                 None => t.toast_text(&tr("No next sibling folder with images")),
@@ -446,8 +461,28 @@ impl Tab {
     }
 
     pub fn set_recursive(&self, on: bool) {
+        if self.set_recursive_flag(on) {
+            self.reload();
+        }
+    }
+
+    /// Open `path` with subfolders included (a single scan).
+    pub fn navigate_recursive(&self, path: &Path) {
+        let changed = self.set_recursive_flag(true);
+        if normalize(path) == self.folder() {
+            if changed {
+                self.reload();
+            }
+        } else {
+            self.navigate(path, true, true);
+        }
+        self.emit(TabEvent::Changed);
+    }
+
+    /// Update the recursive flag and presentation; true if it changed.
+    fn set_recursive_flag(&self, on: bool) -> bool {
         if self.0.recursive.get() == on {
-            return;
+            return false;
         }
         self.0.recursive.set(on);
         self.0.cfg.show_folders.set(on && settings().boolean("show-folder-labels"));
@@ -457,7 +492,7 @@ impl Tab {
         if !on && settings().string("sort-key") == "folder" {
             let _ = settings().set_string("sort-key", "name");
         }
-        self.reload();
+        true
     }
 
     // ----- loading -----
@@ -468,6 +503,9 @@ impl Tab {
             c.cancel();
         }
         if let Some(c) = i.dims_cancel.borrow_mut().take() {
+            c.cancel();
+        }
+        if let Some(c) = i.ratings_cancel.borrow_mut().take() {
             c.cancel();
         }
         i.viewer.close();
@@ -485,6 +523,7 @@ impl Tab {
             show_hidden: s.boolean("show-hidden"),
             same_device: s.boolean("same-device"),
             cap: if i.recursive.get() { s.uint("recursive-cap") as usize } else { usize::MAX },
+            videos: s.boolean("show-videos") && crate::decode::video::available(),
         };
         let cancel = Cancel::default();
         *i.scan_cancel.borrow_mut() = Some(cancel.clone());
@@ -497,6 +536,37 @@ impl Tab {
                 if cancel.is_cancelled() {
                     return;
                 }
+                // After the first paint, merge everything that queued up so the
+                // views see a few large updates instead of many small ones.
+                let msg = match msg {
+                    ScanMsg::Batch(mut entries) if !first => {
+                        let mut tail = None;
+                        while let Ok(next) = rx.try_recv() {
+                            match next {
+                                ScanMsg::Batch(more) => entries.extend(more),
+                                other => {
+                                    tail = Some(other);
+                                    break;
+                                }
+                            }
+                        }
+                        if let Some(t) = upgrade(&w) {
+                            let (n, t0) = (entries.len(), Instant::now());
+                            t.0.model.extend(std::mem::take(&mut entries));
+                            tracing::trace!("appended {n} items (coalesced) in {:?}", t0.elapsed());
+                            t.apply_pending_select();
+                            t.emit(TabEvent::Changed);
+                        }
+                        match tail {
+                            Some(m) => m,
+                            None => {
+                                glib::timeout_future(Duration::from_millis(250)).await;
+                                continue;
+                            }
+                        }
+                    }
+                    m => m,
+                };
                 let Some(t) = upgrade(&w) else { return };
                 match msg {
                     ScanMsg::Batch(entries) => {
@@ -520,12 +590,24 @@ impl Tab {
                         let n = entries.len();
                         let t0 = Instant::now();
                         t.0.model.extend(entries);
-                        tracing::trace!("appended {n} items in {:?}", t0.elapsed());
+                        tracing::trace!(
+                            "appended {n} items in {:?} (cells created so far: {})",
+                            t0.elapsed(),
+                            crate::browser::cell::CELLS_CREATED.load(std::sync::atomic::Ordering::Relaxed)
+                        );
                         if first {
                             first = false;
                             tracing::debug!("first batch after {:?}", started.elapsed());
                             if t.0.focus_after_load.get() && t.0.pending_select.borrow().is_none() {
-                                t.focus_first_item();
+                                // Once the view has laid out its first cells.
+                                let w = t.downgrade();
+                                glib::idle_add_local_once(move || {
+                                    if let Some(t) = upgrade(&w) {
+                                        if !text_entry_has_focus(&t.0.root) && t.0.model.first_selected().is_none() {
+                                            t.focus_first_item();
+                                        }
+                                    }
+                                });
                             }
                         }
                         t.apply_pending_select();
@@ -540,6 +622,11 @@ impl Tab {
                         }
                         t.0.scan_cancel.borrow_mut().take();
                         t.update_page();
+                        if total == 0 && t.0.focus_after_load.get() && !text_entry_has_focus(&t.0.root) {
+                            if let Some(b) = t.0.empty_page.child() {
+                                b.grab_focus();
+                            }
+                        }
                         t.apply_pending_select();
                         t.after_scan();
                         t.emit(TabEvent::Changed);
@@ -556,7 +643,86 @@ impl Tab {
         self.emit(TabEvent::Changed);
     }
 
+    /// Load star ratings (xattrs) on a worker when the filter needs them.
+    fn ensure_ratings(&self) {
+        if !self.0.model.needs_ratings() || self.0.ratings_cancel.borrow().is_some() {
+            return;
+        }
+        let items: Vec<ImageItem> = self.0.model.all_items().into_iter().filter(|i| i.rating().is_none()).collect();
+        if items.is_empty() {
+            return;
+        }
+        let paths: Vec<PathBuf> = items.iter().map(|i| i.path()).collect();
+        let cancel = Cancel::default();
+        *self.0.ratings_cancel.borrow_mut() = Some(cancel.clone());
+        let (tx, rx) = async_channel::unbounded::<Vec<(usize, u8)>>();
+        let c = cancel.clone();
+        std::thread::spawn(move || {
+            for (ci, chunk) in paths.chunks(512).enumerate() {
+                if c.is_cancelled() {
+                    return;
+                }
+                let batch =
+                    chunk.iter().enumerate().map(|(j, p)| (ci * 512 + j, crate::fs::xattrs::read_rating(p))).collect();
+                if tx.send_blocking(batch).is_err() {
+                    return;
+                }
+            }
+        });
+        let w = self.downgrade();
+        glib::spawn_future_local(async move {
+            while let Ok(batch) = rx.recv().await {
+                if cancel.is_cancelled() {
+                    return;
+                }
+                for (idx, r) in batch {
+                    if let Some(item) = items.get(idx) {
+                        item.set_rating(Some(r));
+                    }
+                }
+            }
+            if cancel.is_cancelled() {
+                return;
+            }
+            if let Some(t) = upgrade(&w) {
+                t.0.ratings_cancel.borrow_mut().take();
+                t.0.model.refilter();
+                t.emit(TabEvent::Changed);
+            }
+        });
+    }
+
+    /// Diagnostics (`FLOWLIN_DEBUG_GRID=1`): how many cells the grid holds.
+    fn debug_grid(&self) {
+        if std::env::var_os("FLOWLIN_DEBUG_GRID").is_none() {
+            return;
+        }
+        let grid = self.0.grid.clone();
+        glib::timeout_add_local_once(Duration::from_millis(800), move || {
+            let (mut n, mut mapped, mut sample) = (0, 0, Vec::new());
+            let mut c = grid.first_child();
+            while let Some(w) = c {
+                n += 1;
+                if w.is_child_visible() && w.is_mapped() {
+                    mapped += 1;
+                }
+                if sample.len() < 4 {
+                    sample.push(format!("{}:{}x{}", w.css_name(), w.width(), w.height()));
+                }
+                c = w.next_sibling();
+            }
+            tracing::warn!(
+                "grid: {n} children ({mapped} mapped), grid {}x{}, sample {:?}",
+                grid.width(),
+                grid.height(),
+                sample
+            );
+        });
+    }
+
     fn after_scan(&self) {
+        self.debug_grid();
+        self.ensure_ratings();
         let mode = self.0.mode.get();
         let key = self.0.model.sort_state().key;
         if mode == ViewMode::Waterfall || key == SortKey::Dimensions {
@@ -611,12 +777,13 @@ impl Tab {
                     t.0.waterfall.invalidate();
                 }
             }
+            if cancel.is_cancelled() {
+                return; // a newer job owns dims_cancel now
+            }
             if let Some(t) = upgrade(&w) {
                 t.0.dims_cancel.borrow_mut().take();
                 if t.0.model.sort_state().key == SortKey::Dimensions {
-                    let st = t.0.model.sort_state();
-                    t.0.model.set_sort(SortKey::Name, st.descending);
-                    t.0.model.set_sort(SortKey::Dimensions, st.descending);
+                    t.0.model.resort();
                 }
             }
         });
@@ -689,7 +856,9 @@ impl Tab {
                         t.file_added(&new);
                     }
                 }
-                E::ChangesDoneHint | E::AttributeChanged => t.file_changed(&path),
+                E::ChangesDoneHint => t.file_changed(&path),
+                // Our own rating writes land here too: only refresh the rating.
+                E::AttributeChanged => t.refresh_rating(&path),
                 _ => {}
             }
         });
@@ -697,6 +866,12 @@ impl Tab {
     }
 
     fn file_added(&self, path: &Path) {
+        let folder = self.folder();
+        let belongs =
+            if self.is_recursive() { path.starts_with(&folder) } else { path.parent() == Some(folder.as_path()) };
+        if !belongs {
+            return;
+        }
         if path.is_dir() {
             self.emit(TabEvent::FoldersChanged(self.folder()));
             return;
@@ -704,7 +879,8 @@ impl Tab {
         if !settings().boolean("show-hidden") && crate::util::is_hidden_name(&crate::util::file_name(path)) {
             return;
         }
-        if !crate::fs::formats::is_image(path, true) {
+        let videos = settings().boolean("show-videos") && crate::decode::video::available();
+        if !crate::fs::formats::is_media(path, true, videos) {
             return;
         }
         if let Some(item) = self.0.model.get(path) {
@@ -728,15 +904,35 @@ impl Tab {
         }
     }
 
+    /// The file's content changed on disk: reload its thumbnail if the
+    /// size or modification time actually differ.
     fn file_changed(&self, path: &Path) {
         let Some(item) = self.0.model.get(path) else { return };
-        if let Some(e) = FileEntry::from_path(path, &self.folder()) {
-            item.update_stat(&e);
+        let Some(e) = FileEntry::from_path(path, &self.folder()) else { return };
+        if e.size == item.size() && e.mtime == item.mtime() && item.thumb_state() != ThumbState::Failed {
+            return;
         }
-        crate::thumbs::ThumbService::get().invalidate(path);
+        item.update_stat(&e);
+        let thumbs = crate::thumbs::ThumbService::get();
+        thumbs.invalidate(path);
         self.0.viewer.forget(path);
-        item.set_rating(None);
+        item.set_texture(None);
+        item.set_thumb_state(ThumbState::None);
+        if item.bound() > 0 {
+            thumbs.request(&item, self.0.cfg.thumb_px());
+        }
         self.0.model.item_changed(&item);
+    }
+
+    /// Re-read a file's rating off the main thread.
+    fn refresh_rating(&self, path: &Path) {
+        let Some(item) = self.0.model.get(path) else { return };
+        let p = path.to_path_buf();
+        glib::spawn_future_local(async move {
+            if let Ok(r) = gio::spawn_blocking(move || crate::fs::xattrs::read_rating(&p)).await {
+                item.set_rating(Some(r));
+            }
+        });
     }
 
     // ----- views -----
@@ -803,6 +999,43 @@ impl Tab {
         }
     }
 
+    /// Number of columns the grid currently shows (from its laid-out cells).
+    fn grid_columns(&self) -> u32 {
+        let grid = &self.0.grid;
+        let mut rows: std::collections::HashMap<i32, u32> = Default::default();
+        let mut child = grid.first_child();
+        while let Some(c) = child {
+            if c.is_visible() && c.css_name() == "child" {
+                if let Some(b) = c.compute_bounds(grid) {
+                    *rows.entry(b.y().round() as i32).or_default() += 1;
+                }
+            }
+            child = c.next_sibling();
+        }
+        rows.values().copied().max().unwrap_or(1).max(1)
+    }
+
+    /// The item one row above (`rows < 0`) or below `pos` in the current
+    /// layout; used by Up/Down in the viewer.
+    pub fn row_neighbour(&self, pos: u32, rows: i32) -> Option<u32> {
+        let n = self.0.model.n_items();
+        if n == 0 {
+            return None;
+        }
+        match self.0.mode.get() {
+            ViewMode::Grid => {
+                let cols = self.grid_columns() as i64;
+                let target = pos as i64 + rows as i64 * cols;
+                (0..n as i64).contains(&target).then_some(target as u32)
+            }
+            ViewMode::List => {
+                let target = pos as i64 + rows as i64;
+                (0..n as i64).contains(&target).then_some(target as u32)
+            }
+            ViewMode::Waterfall => self.0.waterfall.neighbour(pos, 0, rows.signum()),
+        }
+    }
+
     /// Focus (not select) the first cell so the first arrow press moves.
     fn focus_first_item(&self) {
         match self.0.mode.get() {
@@ -838,6 +1071,9 @@ impl Tab {
 
     pub fn set_thumb_size(&self, size: i32) {
         self.0.cfg.size.set(size);
+        if let Some(sw) = self.0.grid.parent().and_downcast::<gtk::ScrolledWindow>() {
+            grid::fit_columns(&self.0.grid, sw.hadjustment().page_size(), &self.0.cfg);
+        }
         self.0.cfg.refresh_cells();
         self.0.waterfall.config_changed();
         self.0.grid.queue_resize();
@@ -1030,22 +1266,48 @@ impl Tab {
         });
     }
 
+    /// Rate the selection (xattrs are written on a worker).
     pub fn set_rating(&self, stars: u8) {
         let items = self.selected_items();
-        for item in items {
-            match item.with_path(|p| crate::fs::xattrs::write_rating(p, stars)) {
-                Ok(()) => {
-                    item.set_rating(Some(stars));
-                    self.0.model.item_changed(&item);
-                }
-                Err(e) => {
-                    if !self.0.xattr_warned.replace(true) {
-                        self.toast_text(&format!("{}: {e}", tr("Ratings are not supported on this file system")));
+        if items.is_empty() {
+            return;
+        }
+        let paths: Vec<PathBuf> = items.iter().map(|i| i.path()).collect();
+        let w = self.downgrade();
+        glib::spawn_future_local(async move {
+            let res = gio::spawn_blocking(move || {
+                paths
+                    .iter()
+                    .map(|p| crate::fs::xattrs::write_rating(p, stars).map_err(|e| e.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .await;
+            let Some(t) = upgrade(&w) else { return };
+            let Ok(results) = res else { return };
+            let mut ok = 0;
+            for (item, r) in items.iter().zip(results) {
+                match r {
+                    Ok(()) => {
+                        item.set_rating(Some(stars));
+                        t.0.model.item_changed(item);
+                        ok += 1;
                     }
-                    return;
+                    Err(e) => {
+                        if !t.0.xattr_warned.replace(true) {
+                            t.toast_text(&format!("{}: {e}", tr("Ratings are not supported on this file system")));
+                        }
+                        break;
+                    }
                 }
             }
-        }
+            if ok > 0 {
+                t.toast_text(&if stars == 0 {
+                    tr("Rating cleared")
+                } else {
+                    format!("{} {}", tr("Rated"), "★".repeat(stars as usize))
+                });
+            }
+        });
     }
 
     /// Put the selection on the clipboard (Nautilus-compatible).
@@ -1214,16 +1476,30 @@ impl Tab {
             let Some(t) = upgrade(&w) else { return };
             t.emit(TabEvent::ViewerClosed);
             t.emit(TabEvent::Changed);
-            let pos = t.0.model.position_of(item);
-            // After the window restored its bars/sidebar.
+            // After the window restored its bars/sidebar. The viewer may have
+            // closed because we navigated away: look the item up then.
+            let item = item.clone();
             let w = t.downgrade();
             glib::idle_add_local_once(move || {
                 let Some(t) = upgrade(&w) else { return };
+                if text_entry_has_focus(&t.0.root) {
+                    return;
+                }
                 t.focus_view();
-                if let Some(pos) = pos {
+                if let Some(pos) = t.0.model.position_of(&item) {
                     t.select_and_reveal(pos);
                 }
             });
+        });
+        let w = self.downgrade();
+        i.viewer.connect_row_step(move |pos, rows| upgrade(&w).and_then(|t| t.row_neighbour(pos, rows)));
+        let w = self.downgrade();
+        i.viewer.connect_show(move |pos| {
+            // Keep the thumbnails behind the viewer on the image being shown.
+            if let Some(t) = upgrade(&w) {
+                t.0.model.select_only(pos);
+                t.scroll_to(pos, false);
+            }
         });
         let w = self.downgrade();
         i.viewer.connect_trash(move |item| {
@@ -1232,18 +1508,10 @@ impl Tab {
             }
         });
         let w = self.downgrade();
-        i.viewer.connect_rate(move |item, stars| {
-            let Some(t) = upgrade(&w) else { return };
-            match item.with_path(|p| crate::fs::xattrs::write_rating(p, stars)) {
-                Ok(()) => {
-                    item.set_rating(Some(stars));
-                    t.toast_text(&if stars == 0 {
-                        tr("Rating cleared")
-                    } else {
-                        format!("{} {}", tr("Rated"), "★".repeat(stars as usize))
-                    });
-                }
-                Err(e) => t.toast_text(&format!("{}: {e}", tr("Could not save rating"))),
+        i.viewer.connect_rate(move |_, stars| {
+            // selected_items() yields the viewer's current image while it is open.
+            if let Some(t) = upgrade(&w) {
+                t.set_rating(stars);
             }
         });
 
@@ -1251,6 +1519,7 @@ impl Tab {
         i.search_entry.connect_search_changed(move |e| {
             if let Some(t) = upgrade(&w) {
                 t.0.model.set_filter(&e.text());
+                t.ensure_ratings();
                 t.emit(TabEvent::Changed);
             }
         });
@@ -1275,6 +1544,16 @@ impl Tab {
         {
             self.setup_view_input(&view);
         }
+        // Letters, space, backspace and digits, before the views see them.
+        // On the stack so they also work on the empty/error pages.
+        let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let w = self.downgrade();
+        keys.connect_key_pressed(move |_, key, _, state| {
+            let Some(t) = upgrade(&w) else { return glib::Propagation::Proceed };
+            t.handle_view_key(key, state)
+        });
+        i.stack.add_controller(keys);
         let w = self.downgrade();
         i.model.selection.connect_items_changed(move |_, _, _, _| {
             if let Some(t) = upgrade(&w) {
@@ -1349,16 +1628,6 @@ impl Tab {
     }
 
     fn setup_view_input(&self, view: &gtk::Widget) {
-        // Letters, space, backspace and digits (capture phase, before the view).
-        let keys = gtk::EventControllerKey::new();
-        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let w = self.downgrade();
-        keys.connect_key_pressed(move |_, key, _, state| {
-            let Some(t) = upgrade(&w) else { return glib::Propagation::Proceed };
-            t.handle_view_key(key, state)
-        });
-        view.add_controller(keys);
-
         // Ctrl+scroll resizes thumbnails.
         let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
         scroll.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -1595,8 +1864,15 @@ impl Tab {
             s2.append(Some(&tr("Open in File Manager")), Some("win.open-fm"));
             menu.append_section(None, &s2);
         }
+        // Parent to the tab root rather than the scrolling view: list views
+        // clip their children, which cut off the menu's rounded corners.
+        let root = &self.0.root;
+        let (x, y) = view
+            .compute_point(root, &gtk::graphene::Point::new(x as f32, y as f32))
+            .map(|p| (p.x() as f64, p.y() as f64))
+            .unwrap_or((x, y));
         let pop = gtk::PopoverMenu::from_model(Some(&menu));
-        pop.set_parent(view);
+        pop.set_parent(root);
         pop.set_has_arrow(false);
         pop.set_pointing_to(Some(&gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
         pop.connect_closed(|p| {
@@ -1637,6 +1913,17 @@ fn find_thumb_cell(w: &gtk::Widget) -> Option<ThumbCell> {
         child = c.next_sibling();
     }
     None
+}
+
+/// Is keyboard focus inside a text entry of `w`'s window? Deferred focus
+/// changes must not steal focus from entries the user just opened.
+pub fn text_entry_has_focus(w: &impl IsA<gtk::Widget>) -> bool {
+    w.root().and_then(|r| r.focus()).is_some_and(|f| {
+        f.is::<gtk::Text>()
+            || f.is::<gtk::Entry>()
+            || f.ancestor(gtk::Text::static_type()).is_some()
+            || f.ancestor(gtk::Entry::static_type()).is_some()
+    })
 }
 
 /// Strip trailing slashes and `.` components; keep symlinks as typed.

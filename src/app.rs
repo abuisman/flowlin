@@ -125,9 +125,27 @@ impl App {
         }
         let w = Window::new(&self.app);
         install_view_shortcuts(&w);
+        install_frame_logger(&w);
         *self.window.borrow_mut() = Some(w.clone());
         w
     }
+}
+
+/// `FLOWLIN_FRAME_LOG=1`: log frames that took longer than 24 ms.
+fn install_frame_logger(w: &Window) {
+    if std::env::var_os("FLOWLIN_FRAME_LOG").is_none() {
+        return;
+    }
+    let last = std::cell::Cell::new(0i64);
+    w.window().add_tick_callback(move |_, clock| {
+        let t = clock.frame_time();
+        let prev = last.replace(t);
+        let dt = (t - prev) as f64 / 1000.0;
+        if prev != 0 && dt > 24.0 && dt < 2000.0 {
+            tracing::warn!("slow frame: {dt:.1} ms");
+        }
+        glib::ControlFlow::Continue
+    });
 }
 
 fn install_view_shortcuts(w: &Window) {
@@ -365,28 +383,23 @@ fn show_shortcuts(parent: Option<&gtk::Window>) {
     }
 }
 
-/// File properties: name, path, size, dimensions, colour, dates, EXIF.
-pub fn show_properties(parent: &gtk::Window, path: &Path) {
-    let dialog = adw::Dialog::new();
-    dialog.set_title(&tr("Properties"));
-    dialog.set_content_width(460);
-    let page = adw::PreferencesPage::new();
-    let add_row = |group: &adw::PreferencesGroup, title: &str, value: &str| {
-        let row = adw::ActionRow::new();
-        row.set_title(title);
-        row.set_subtitle(&glib::markup_escape_text(value));
-        row.set_subtitle_selectable(true);
-        row.add_css_class("property");
-        group.add(&row);
-    };
-    let file = adw::PreferencesGroup::new();
-    add_row(&file, &tr("Name"), &crate::util::file_name(path));
-    add_row(&file, &tr("Folder"), &path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default());
+/// Everything the properties dialog shows, gathered on a worker thread.
+struct PropertyRows {
+    file: Vec<(&'static str, String)>,
+    image: Vec<(&'static str, String)>,
+    exif: Vec<(&'static str, String)>,
+}
+
+fn gather_properties(path: &Path) -> PropertyRows {
+    let mut file = vec![
+        ("Name", crate::util::file_name(path)),
+        ("Folder", path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()),
+    ];
     let md = std::fs::metadata(path).ok();
     if let Some(md) = &md {
-        add_row(&file, &tr("Size"), &format!("{} ({} bytes)", crate::util::format_size(md.len()), md.len()));
+        file.push(("Size", format!("{} ({} bytes)", crate::util::format_size(md.len()), md.len())));
     }
-    add_row(&file, &tr("Type"), &crate::fs::formats::type_label(path));
+    file.push(("Type", crate::fs::formats::type_label(path)));
     let time = |t: std::io::Result<std::time::SystemTime>| {
         t.ok()
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
@@ -396,40 +409,67 @@ pub fn show_properties(parent: &gtk::Window, path: &Path) {
     };
     if let Some(md) = &md {
         if let Some(t) = time(md.modified()) {
-            add_row(&file, &tr("Modified"), &t);
+            file.push(("Modified", t));
         }
         if let Some(t) = time(md.created()) {
-            add_row(&file, &tr("Created"), &t);
+            file.push(("Created", t));
         }
     }
-    page.add(&file);
-
-    let image = adw::PreferencesGroup::new();
-    image.set_title(&tr("Image"));
+    let mut image = Vec::new();
     if let Some((w, h)) = crate::decode::dimensions(path) {
-        add_row(&image, &tr("Dimensions"), &format!("{w} × {h} ({:.1} MP)", w as f64 * h as f64 / 1e6));
+        image.push(("Dimensions", format!("{w} × {h} ({:.1} MP)", w as f64 * h as f64 / 1e6)));
     }
     if let Some(c) = crate::decode::color_description(path) {
-        add_row(&image, &tr("Colour / Bit Depth"), &c);
+        image.push(("Colour / Bit Depth", c));
     }
     let rating = crate::fs::xattrs::read_rating(path);
     if rating > 0 {
-        add_row(&image, &tr("Rating"), &"★".repeat(rating as usize));
+        image.push(("Rating", "★".repeat(rating as usize)));
     }
     let tags = crate::fs::xattrs::read_tags(path);
     if !tags.is_empty() {
-        add_row(&image, &tr("Tags"), &tags.join(", "));
+        image.push(("Tags", tags.join(", ")));
     }
-    page.add(&image);
+    PropertyRows { file, image, exif: crate::decode::exif::summary(path) }
+}
 
-    let exif = crate::decode::exif::summary(path);
-    if !exif.is_empty() {
+/// File properties: name, path, size, dimensions, colour, dates, EXIF.
+/// File reads happen on a worker; the dialog appears when they are done.
+pub fn show_properties(parent: &gtk::Window, path: &Path) {
+    let path = path.to_path_buf();
+    let parent = parent.clone();
+    glib::spawn_future_local(async move {
+        let Ok(rows) = gio::spawn_blocking(move || gather_properties(&path)).await else { return };
+        present_properties(&parent, rows);
+    });
+}
+
+fn present_properties(parent: &gtk::Window, rows: PropertyRows) {
+    let dialog = adw::Dialog::new();
+    dialog.set_title(&tr("Properties"));
+    dialog.set_content_width(460);
+    let page = adw::PreferencesPage::new();
+    let group = |title: Option<&str>, items: &[(&'static str, String)]| {
         let g = adw::PreferencesGroup::new();
-        g.set_title("EXIF");
-        for (k, v) in exif {
-            add_row(&g, &tr(k), &v);
+        if let Some(t) = title {
+            g.set_title(t);
         }
-        page.add(&g);
+        for (k, v) in items {
+            let row = adw::ActionRow::new();
+            row.set_title(&tr(k));
+            row.set_subtitle(&glib::markup_escape_text(v));
+            row.set_subtitle_selectable(true);
+            row.add_css_class("property");
+            g.add(&row);
+        }
+        g
+    };
+    page.add(&group(None, &rows.file));
+    if !rows.image.is_empty() {
+        page.add(&group(Some(&tr("Image")), &rows.image));
+    }
+    if !rows.exif.is_empty() {
+        page.add(&group(Some("EXIF"), &rows.exif));
     }
     let tv = adw::ToolbarView::new();
     tv.add_top_bar(&adw::HeaderBar::new());

@@ -14,7 +14,7 @@ fn main() {
     let recursive = std::env::args().any(|a| a == "--recursive");
     flowlin::fs::formats::init();
 
-    let opts = ScanOptions { recursive, show_hidden: false, same_device: false, cap: 10_000_000 };
+    let opts = ScanOptions { recursive, show_hidden: false, same_device: false, cap: 10_000_000, videos: false };
     let t0 = Instant::now();
     let rx = spawn_scan(dir.clone(), opts, Cancel::default());
     let mut first = None;

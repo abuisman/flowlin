@@ -12,6 +12,9 @@ use super::ViewConfig;
 use crate::model::{ImageItem, ThumbState};
 use crate::thumbs::ThumbService;
 
+/// Diagnostics: total cell widgets constructed.
+pub static CELLS_CREATED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 mod frame_imp {
     use super::*;
 
@@ -82,6 +85,7 @@ mod imp {
         pub picture: gtk::Picture,
         pub broken: gtk::Image,
         pub stars: gtk::Label,
+        pub play: gtk::Image,
         pub name: gtk::Label,
         pub folder: gtk::Label,
         pub item: RefCell<Option<(ImageItem, glib::SignalHandlerId)>>,
@@ -100,6 +104,7 @@ mod imp {
     impl ObjectImpl for ThumbCell {
         fn constructed(&self) {
             self.parent_constructed();
+            super::CELLS_CREATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let obj = self.obj();
             obj.set_orientation(gtk::Orientation::Vertical);
             obj.set_spacing(4);
@@ -119,6 +124,15 @@ mod imp {
             self.broken.add_css_class("dim-label");
             self.broken.set_visible(false);
             self.card.add_overlay(&self.broken);
+
+            self.play.set_icon_name(Some("media-playback-start-symbolic"));
+            self.play.set_pixel_size(20);
+            self.play.add_css_class("thumb-play");
+            self.play.set_halign(gtk::Align::Center);
+            self.play.set_valign(gtk::Align::Center);
+            self.play.set_visible(false);
+            self.play.set_can_target(false);
+            self.card.add_overlay(&self.play);
 
             self.stars.add_css_class("thumb-stars");
             self.stars.set_halign(gtk::Align::Start);
@@ -172,6 +186,21 @@ impl ThumbCell {
 
     pub fn item(&self) -> Option<ImageItem> {
         self.imp().item.borrow().as_ref().map(|(i, _)| i.clone())
+    }
+
+    /// Size an unbound cell like a real one. GtkGridView estimates row
+    /// heights from fresh cells; if they measured 0 px it would create a
+    /// widget for thousands of items at once.
+    pub fn apply_size(&self, cfg: &ViewConfig) {
+        let imp = self.imp();
+        imp.size.set(cfg.size.get());
+        self.update_card_size();
+        imp.name.set_visible(cfg.show_names.get());
+        imp.folder.set_visible(cfg.show_folders.get());
+        if imp.name.label().is_empty() {
+            imp.name.set_label(" ");
+            imp.folder.set_label(" ");
+        }
     }
 
     pub fn apply_config(&self, cfg: &ViewConfig) {
@@ -247,6 +276,7 @@ impl ThumbCell {
         imp.picture.remove_css_class("loaded");
         imp.broken.set_visible(false);
         imp.stars.set_visible(false);
+        imp.play.set_visible(false);
     }
 
     fn refresh(&self, animate: bool) {
@@ -262,6 +292,7 @@ impl ThumbCell {
             imp.picture.add_css_class("loaded");
         }
         imp.broken.set_visible(item.thumb_state() == ThumbState::Failed);
+        imp.play.set_visible(item.is_video());
         match item.rating() {
             Some(r) if r > 0 => {
                 imp.stars.set_label(&"★".repeat(r as usize));

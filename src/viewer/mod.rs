@@ -23,6 +23,9 @@ use crate::util::{format_count, format_size};
 
 type ItemCallback = Box<dyn Fn(&ImageItem)>;
 type RateCallback = Box<dyn Fn(&ImageItem, u8)>;
+/// (current index, rows down (+) or up (-)) -> index of the item there.
+type RowCallback = Box<dyn Fn(u32, i32) -> Option<u32>>;
+type ShowCallback = Box<dyn Fn(u32)>;
 
 struct Anim {
     loaded: Rc<Loaded>,
@@ -33,6 +36,12 @@ struct Anim {
 pub struct Inner {
     pub root: gtk::Overlay,
     canvas: ImageCanvas,
+    /// Video playback surface (GtkMediaFile via GTK's GStreamer backend).
+    video: gtk::Picture,
+    media: RefCell<Option<gtk::MediaFile>>,
+    /// Play/pause, seek bar and volume for videos.
+    controls: gtk::MediaControls,
+    controls_rev: gtk::Revealer,
     hud: gtk::Revealer,
     hud_name: gtk::Label,
     hud_info: gtk::Label,
@@ -54,6 +63,8 @@ pub struct Inner {
     on_close: RefCell<Option<ItemCallback>>,
     on_trash: RefCell<Option<ItemCallback>>,
     on_rate: RefCell<Option<RateCallback>>,
+    on_row: RefCell<Option<RowCallback>>,
+    on_show: RefCell<Option<ShowCallback>>,
 }
 
 #[derive(Clone)]
@@ -68,6 +79,13 @@ impl Viewer {
         let canvas = ImageCanvas::default();
         canvas.set_focusable(true);
         root.set_child(Some(&canvas));
+        let video = gtk::Picture::new();
+        video.set_content_fit(gtk::ContentFit::Contain);
+        video.set_can_shrink(true);
+        // Input goes to the canvas underneath (gestures, scrolling).
+        video.set_can_target(false);
+        video.set_visible(false);
+        root.add_overlay(&video);
 
         let spinner = gtk::Spinner::new();
         spinner.set_size_request(32, 32);
@@ -110,9 +128,31 @@ impl Viewer {
         hud.set_can_target(false);
         root.add_overlay(&hud);
 
+        let controls = gtk::MediaControls::new(None::<&gtk::MediaStream>);
+        controls.set_hexpand(true);
+        let controls_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        controls_box.add_css_class("osd");
+        controls_box.add_css_class("viewer-controls");
+        controls_box.append(&controls);
+        let clamp = adw::Clamp::new();
+        clamp.set_maximum_size(720);
+        clamp.set_child(Some(&controls_box));
+        let controls_rev = gtk::Revealer::new();
+        controls_rev.set_transition_type(gtk::RevealerTransitionType::Crossfade);
+        controls_rev.set_child(Some(&clamp));
+        controls_rev.set_valign(gtk::Align::End);
+        controls_rev.set_margin_bottom(12);
+        controls_rev.set_margin_start(12);
+        controls_rev.set_margin_end(12);
+        root.add_overlay(&controls_rev);
+
         let v = Viewer(Rc::new(Inner {
             root,
             canvas,
+            video,
+            media: Default::default(),
+            controls,
+            controls_rev,
             hud,
             hud_name,
             hud_info,
@@ -133,6 +173,8 @@ impl Viewer {
             on_close: Default::default(),
             on_trash: Default::default(),
             on_rate: Default::default(),
+            on_row: Default::default(),
+            on_show: Default::default(),
         }));
         let w = v.downgrade();
         v.0.loader.connect_loaded(move |p| {
@@ -178,6 +220,25 @@ impl Viewer {
         *self.0.on_rate.borrow_mut() = Some(Box::new(f));
     }
 
+    /// Up/Down move by one row of the thumbnail layout behind the viewer.
+    pub fn connect_row_step(&self, f: impl Fn(u32, i32) -> Option<u32> + 'static) {
+        *self.0.on_row.borrow_mut() = Some(Box::new(f));
+    }
+
+    /// Called whenever another image is shown (keeps the grid in sync).
+    pub fn connect_show(&self, f: impl Fn(u32) + 'static) {
+        *self.0.on_show.borrow_mut() = Some(Box::new(f));
+    }
+
+    fn row_step(&self, rows: i32) {
+        let target = self.0.on_row.borrow().as_ref().and_then(|f| f(self.0.index.get(), rows));
+        if let Some(t) = target {
+            if t != self.0.index.get() {
+                self.show(t);
+            }
+        }
+    }
+
     pub fn open(&self, pos: u32) {
         let i = &self.0;
         i.open.set(true);
@@ -195,6 +256,7 @@ impl Viewer {
         }
         self.stop_slideshow();
         self.stop_animation();
+        self.stop_video();
         i.open.set(false);
         i.root.set_visible(false);
         i.canvas.set_image(None, 1, 1, false);
@@ -214,26 +276,34 @@ impl Viewer {
         let pos = pos.min(n - 1);
         let Some(item) = i.model.item(pos) else { return };
         i.index.set(pos);
+        if let Some(f) = i.on_show.borrow().as_ref() {
+            f(pos);
+        }
         *i.current.borrow_mut() = Some(item.clone());
         self.stop_animation();
+        self.stop_video();
         let path = item.path();
-        match i.loader.get(&path, item.mtime()) {
-            Some(res) => self.display(res),
-            None => {
-                // Show the thumbnail scaled up while the full image decodes.
-                let (w, h) = item.dimensions().unwrap_or((1, 1));
-                i.canvas.set_image(item.texture(), w, h, false);
-                i.canvas.set_mode(i.sticky.get());
-                i.error.set_visible(false);
-                i.spinner.set_visible(true);
-                i.spinner.start();
-                i.loader.request(&path, item.mtime());
+        if item.is_video() {
+            self.play_video(&path);
+        } else {
+            match i.loader.get(&path, item.mtime()) {
+                Some(res) => self.display(res),
+                None => {
+                    // Show the thumbnail scaled up while the full image decodes.
+                    let (w, h) = item.dimensions().unwrap_or((1, 1));
+                    i.canvas.set_image(item.texture(), w, h, false);
+                    i.canvas.set_mode(i.sticky.get());
+                    i.error.set_visible(false);
+                    i.spinner.set_visible(true);
+                    i.spinner.start();
+                    i.loader.request(&path, item.mtime());
+                }
             }
         }
-        // Prefetch neighbours.
+        // Prefetch neighbouring images.
         for p in [pos + 1, pos.wrapping_sub(1), pos + 2] {
             if p < n {
-                if let Some(it) = i.model.item(p) {
+                if let Some(it) = i.model.item(p).filter(|it| !it.is_video()) {
                     i.loader.request(&it.path(), it.mtime());
                 }
             }
@@ -273,6 +343,83 @@ impl Viewer {
         }
         if let Some(res) = self.0.loader.get(path, item.mtime()) {
             self.display(res);
+        }
+    }
+
+    fn play_video(&self, path: &Path) {
+        let i = &self.0;
+        i.canvas.set_image(None, 1, 1, false);
+        i.error.set_visible(false);
+        i.spinner.stop();
+        i.spinner.set_visible(false);
+        let media = gtk::MediaFile::for_filename(path);
+        media.set_muted(true);
+        media.set_loop(true);
+        let w = self.downgrade();
+        media.connect_error_notify(move |m| {
+            if let (Some(v), Some(e)) = (upgrade(&w), m.error()) {
+                tracing::info!("cannot play video: {e}");
+                v.0.video.set_visible(false);
+                v.0.error.set_visible(true);
+            }
+        });
+        let w = self.downgrade();
+        media.connect_duration_notify(move |_| {
+            if let Some(v) = upgrade(&w) {
+                v.update_hud();
+            }
+        });
+        media.play();
+        i.video.set_paintable(Some(&media));
+        i.video.set_visible(true);
+        i.controls.set_media_stream(Some(&media));
+        i.controls_rev.set_reveal_child(true);
+        // Keep the info HUD above the controls bar.
+        i.hud.set_margin_bottom(84);
+        let w = self.downgrade();
+        media.connect_playing_notify(move |m| {
+            if let Some(v) = upgrade(&w) {
+                if !m.is_playing() {
+                    v.0.controls_rev.set_reveal_child(true);
+                }
+            }
+        });
+        *i.media.borrow_mut() = Some(media);
+    }
+
+    fn stop_video(&self) {
+        let i = &self.0;
+        if let Some(m) = i.media.borrow_mut().take() {
+            m.pause();
+            m.clear();
+        }
+        i.video.set_paintable(None::<&gtk::gdk::Paintable>);
+        i.video.set_visible(false);
+        i.controls.set_media_stream(None::<&gtk::MediaStream>);
+        i.controls_rev.set_reveal_child(false);
+        i.hud.set_margin_bottom(18);
+    }
+
+    /// Change the volume by `delta` (0–1); raising it unmutes.
+    fn change_volume(&self, delta: f64) {
+        let Some(m) = self.media() else { return };
+        let v = (m.volume() + delta).clamp(0.0, 1.0);
+        m.set_volume(v);
+        m.set_muted(v <= 0.0);
+        self.update_hud();
+        self.flash_hud();
+    }
+
+    fn media(&self) -> Option<gtk::MediaFile> {
+        self.0.media.borrow().clone()
+    }
+
+    /// Seek the playing video by `secs` seconds.
+    fn seek_by(&self, secs: i64) {
+        if let Some(m) = self.media() {
+            let t = (m.timestamp() + secs * 1_000_000).clamp(0, m.duration().max(0));
+            m.seek(t);
+            self.flash_hud();
         }
     }
 
@@ -357,11 +504,21 @@ impl Viewer {
             format_count(i.index.get() as usize + 1),
             format_count(i.model.n_items() as usize)
         )];
-        if let Some((w, h)) = item.dimensions() {
+        if let Some(m) = self.media() {
+            let secs = m.duration() / 1_000_000;
+            if secs > 0 {
+                parts.push(format!("{}:{:02}", secs / 60, secs % 60));
+            }
+            parts.push(if m.is_muted() {
+                tr("Muted")
+            } else {
+                format!("{} {:.0} %", tr("Volume"), m.volume() * 100.0)
+            });
+        } else if let Some((w, h)) = item.dimensions() {
             parts.push(format!("{w} × {h}"));
         }
         parts.push(format_size(item.size()));
-        if i.canvas.has_image() {
+        if i.canvas.has_image() && i.media.borrow().is_none() {
             parts.push(format!("{:.0} %", i.canvas.zoom_percent()));
         }
         if i.slideshow.borrow().is_some() {
@@ -373,6 +530,9 @@ impl Viewer {
     fn flash_hud(&self) {
         let i = &self.0;
         i.hud.set_reveal_child(true);
+        if i.media.borrow().is_some() {
+            i.controls_rev.set_reveal_child(true);
+        }
         if let Some(t) = i.hud_timer.borrow_mut().take() {
             t.remove();
         }
@@ -386,9 +546,23 @@ impl Viewer {
                 if !v.0.hud_pinned.get() {
                     v.0.hud.set_reveal_child(false);
                 }
+                // Hide video controls only while playing and not hovered.
+                let playing = v.media().is_some_and(|m| m.is_playing());
+                if playing && !v.pointer_over_controls() {
+                    v.0.controls_rev.set_reveal_child(false);
+                }
             }
         });
         *i.hud_timer.borrow_mut() = Some(id);
+    }
+
+    fn pointer_over_controls(&self) -> bool {
+        let (x, y) = self.0.pointer.get();
+        let c = &self.0.controls_rev;
+        c.compute_bounds(&self.0.root).is_some_and(|b| {
+            let (x, y) = (x as f32, y as f32);
+            x >= b.x() && x <= b.x() + b.width() && y >= b.y() && y <= b.y() + b.height()
+        })
     }
 
     fn toggle_hud(&self) {
@@ -462,9 +636,49 @@ impl Viewer {
             {
                 return glib::Propagation::Proceed;
             }
+            if let Some(m) = v.media() {
+                match key {
+                    Key::space => {
+                        if m.is_playing() {
+                            m.pause();
+                        } else {
+                            m.play();
+                        }
+                        v.flash_hud();
+                        return glib::Propagation::Stop;
+                    }
+                    // Arrows work inside the video: seek and volume.
+                    // Page Up/Down (or the mouse side buttons) switch files.
+                    Key::Left | Key::KP_Left => {
+                        v.seek_by(if shift { -30 } else { -5 });
+                        return glib::Propagation::Stop;
+                    }
+                    Key::Right | Key::KP_Right => {
+                        v.seek_by(if shift { 30 } else { 5 });
+                        return glib::Propagation::Stop;
+                    }
+                    Key::Up | Key::KP_Up => {
+                        v.change_volume(0.1);
+                        return glib::Propagation::Stop;
+                    }
+                    Key::Down | Key::KP_Down => {
+                        v.change_volume(-0.1);
+                        return glib::Propagation::Stop;
+                    }
+                    Key::m | Key::M => {
+                        m.set_muted(!m.is_muted());
+                        v.update_hud();
+                        v.flash_hud();
+                        return glib::Propagation::Stop;
+                    }
+                    _ => {}
+                }
+            }
             match key {
                 Key::Right | Key::KP_Right | Key::space | Key::Page_Down | Key::KP_Page_Down => v.step(1),
                 Key::Left | Key::KP_Left | Key::BackSpace | Key::Page_Up | Key::KP_Page_Up => v.step(-1),
+                Key::Up | Key::KP_Up => v.row_step(-1),
+                Key::Down | Key::KP_Down => v.row_step(1),
                 Key::Home | Key::KP_Home => v.show(0),
                 Key::End | Key::KP_End => v.show(v.0.model.n_items().saturating_sub(1)),
                 Key::Escape | Key::Return | Key::KP_Enter => v.close(),
@@ -523,7 +737,7 @@ impl Viewer {
                 v.flash_hud();
             }
         });
-        i.canvas.add_controller(motion);
+        i.root.add_controller(motion);
 
         let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
         let w = self.downgrade();

@@ -47,18 +47,8 @@ impl FilterSpec {
         if self.is_empty() {
             return true;
         }
-        let rating = if self.rating.is_some() {
-            match item.rating() {
-                Some(r) => r,
-                None => {
-                    let r = item.with_path(crate::fs::xattrs::read_rating);
-                    item.set_rating(Some(r));
-                    r
-                }
-            }
-        } else {
-            0
-        };
+        // Ratings are loaded off the main thread; unknown counts as 0 until then.
+        let rating = item.rating().unwrap_or(0);
         item.with_name(|n| self.matches_parts(n, rating))
     }
 }

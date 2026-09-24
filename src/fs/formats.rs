@@ -19,6 +19,9 @@ const KNOWN_EXTS: &[&str] = &[
     "cr2", "cr3", "nef", "arw", "dng", "orf", "rw2", "raf", "pef", "srw",
 ];
 
+/// Video containers shown when GStreamer is available.
+const VIDEO_EXTS: &[&str] = &["mp4", "m4v", "mkv", "webm", "mov", "avi"];
+
 static SUPPORTED: OnceLock<HashSet<String>> = OnceLock::new();
 
 /// Detect available loaders. Call once at start-up (any thread).
@@ -62,6 +65,15 @@ pub fn extension(path: &Path) -> Option<String> {
     path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase())
 }
 
+pub fn is_video(path: &Path) -> bool {
+    extension(path).is_some_and(|e| VIDEO_EXTS.contains(&e.as_str()))
+}
+
+/// Is this a file we list (image, or video when `videos` is on)?
+pub fn is_media(path: &Path, sniff: bool, videos: bool) -> bool {
+    is_image(path, sniff) || (videos && is_video(path))
+}
+
 /// Is this a file we display? `sniff` allows reading magic bytes for files
 /// without an extension.
 pub fn is_image(path: &Path, sniff: bool) -> bool {
@@ -84,10 +96,8 @@ pub fn type_label(path: &Path) -> String {
         Some("svg" | "svgz") => "SVG".into(),
         Some("heic" | "heif") => "HEIF".into(),
         Some(e) => e.to_ascii_uppercase(),
-        None => match infer::get_from_path(path) {
-            Ok(Some(t)) => t.extension().to_ascii_uppercase(),
-            _ => "?".into(),
-        },
+        // No file reads here: this runs on the UI thread for list rows.
+        None => "Image".into(),
     }
 }
 

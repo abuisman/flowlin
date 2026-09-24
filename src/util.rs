@@ -13,35 +13,52 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
 }
 
 fn natural_cmp_folded(a: &str, b: &str) -> Ordering {
-    let mut ai = a.chars().peekable();
-    let mut bi = b.chars().peekable();
-    loop {
-        match (ai.peek().copied(), bi.peek().copied()) {
-            (None, None) => return Ordering::Equal,
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(ca), Some(cb)) => {
-                if ca.is_ascii_digit() && cb.is_ascii_digit() {
-                    let da = take_digits(&mut ai);
-                    let db = take_digits(&mut bi);
-                    let ta = da.trim_start_matches('0');
-                    let tb = db.trim_start_matches('0');
-                    let o = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb)).then_with(|| da.len().cmp(&db.len()));
-                    if o != Ordering::Equal {
-                        return o;
-                    }
-                } else {
-                    let la = fold(ca);
-                    let lb = fold(cb);
-                    if la != lb {
-                        return la.cmp(&lb);
-                    }
-                    ai.next();
-                    bi.next();
-                }
+    let (ab, bb) = (a.as_bytes(), b.as_bytes());
+    let (mut i, mut j) = (0, 0);
+    while i < ab.len() && j < bb.len() {
+        let (ca, cb) = (ab[i], bb[j]);
+        if ca.is_ascii_digit() && cb.is_ascii_digit() {
+            // Compare digit runs numerically without allocating.
+            let si = i;
+            while i < ab.len() && ab[i].is_ascii_digit() {
+                i += 1;
             }
+            let sj = j;
+            while j < bb.len() && bb[j].is_ascii_digit() {
+                j += 1;
+            }
+            let (da, db) = (&ab[si..i], &bb[sj..j]);
+            let ta = trim_zeros(da);
+            let tb = trim_zeros(db);
+            let o = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb)).then_with(|| da.len().cmp(&db.len()));
+            if o != Ordering::Equal {
+                return o;
+            }
+        } else if ca.is_ascii() && cb.is_ascii() {
+            let (la, lb) = (ca.to_ascii_lowercase(), cb.to_ascii_lowercase());
+            if la != lb {
+                return la.cmp(&lb);
+            }
+            i += 1;
+            j += 1;
+        } else {
+            // Non-ASCII: compare whole chars, case-folded.
+            let (Some(xa), Some(xb)) = (a[i..].chars().next(), b[j..].chars().next()) else { break };
+            let (la, lb) = (fold(xa), fold(xb));
+            if la != lb {
+                return la.cmp(&lb);
+            }
+            i += xa.len_utf8();
+            j += xb.len_utf8();
         }
     }
+    // The string with characters left over is the longer one.
+    (i < ab.len()).cmp(&(j < bb.len()))
+}
+
+fn trim_zeros(d: &[u8]) -> &[u8] {
+    let n = d.iter().take_while(|&&c| c == b'0').count();
+    &d[n..]
 }
 
 fn fold(c: char) -> char {
@@ -50,19 +67,6 @@ fn fold(c: char) -> char {
     } else {
         c.to_lowercase().next().unwrap_or(c)
     }
-}
-
-fn take_digits(it: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
-    let mut s = String::new();
-    while let Some(&c) = it.peek() {
-        if c.is_ascii_digit() {
-            s.push(c);
-            it.next();
-        } else {
-            break;
-        }
-    }
-    s
 }
 
 /// One clickable breadcrumb segment.
