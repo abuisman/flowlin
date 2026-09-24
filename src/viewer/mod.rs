@@ -646,7 +646,7 @@ impl Viewer {
             };
             if let Some(m) = v.media() {
                 match key {
-                    Key::space => {
+                    Key::k | Key::K => {
                         if m.is_playing() {
                             m.pause();
                         } else {
@@ -683,13 +683,13 @@ impl Viewer {
                 }
             }
             match key {
-                Key::Right | Key::KP_Right | Key::space | Key::Page_Down | Key::KP_Page_Down => v.step(1),
+                Key::Right | Key::KP_Right | Key::Page_Down | Key::KP_Page_Down => v.step(1),
                 Key::Left | Key::KP_Left | Key::BackSpace | Key::Page_Up | Key::KP_Page_Up => v.step(-1),
                 Key::Up | Key::KP_Up => v.row_step(-1),
                 Key::Down | Key::KP_Down => v.row_step(1),
                 Key::Home | Key::KP_Home => v.show(0),
                 Key::End | Key::KP_End => v.show(v.0.model.n_items().saturating_sub(1)),
-                Key::Escape | Key::Return | Key::KP_Enter => v.close(),
+                Key::Escape | Key::Return | Key::KP_Enter | Key::space => v.close(),
                 Key::plus | Key::equal | Key::KP_Add => v.zoom(1.25, false),
                 Key::minus | Key::KP_Subtract => v.zoom(0.8, false),
                 Key::_0 | Key::KP_0 if ctrl => v.set_zoom_mode(ZoomMode::Fit),

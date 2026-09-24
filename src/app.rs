@@ -341,7 +341,7 @@ fn show_shortcuts(parent: Option<&gtk::Window>) {
             &[
                 ("Previous / next image", "Left Right a d"),
                 ("Row above / below (as in the grid)", "Up Down w s"),
-                ("Close viewer", "Escape Return"),
+                ("Close viewer", "Escape Return space"),
                 ("Zoom in / out", "plus minus"),
                 ("100 % / fit / fill", "1 0 <Shift>f"),
                 ("Rotate (view only)", "r <Shift>r"),
@@ -355,7 +355,7 @@ fn show_shortcuts(parent: Option<&gtk::Window>) {
         (
             "Video",
             &[
-                ("Play / pause", "space"),
+                ("Play / pause", "k"),
                 ("Seek 5 s / 30 s", "Left Right <Shift>Left <Shift>Right"),
                 ("Volume up / down", "Up Down"),
                 ("Mute", "m"),
