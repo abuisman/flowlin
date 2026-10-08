@@ -12,9 +12,6 @@ use super::ViewConfig;
 use crate::model::{ImageItem, ThumbState};
 use crate::thumbs::ThumbService;
 
-/// Diagnostics: total cell widgets constructed.
-pub static CELLS_CREATED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
 mod frame_imp {
     use super::*;
 
@@ -104,7 +101,6 @@ mod imp {
     impl ObjectImpl for ThumbCell {
         fn constructed(&self) {
             self.parent_constructed();
-            super::CELLS_CREATED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let obj = self.obj();
             obj.set_orientation(gtk::Orientation::Vertical);
             obj.set_spacing(4);

@@ -22,7 +22,7 @@ use crate::settings::settings;
 use crate::util::format_count;
 use crate::viewer::Viewer;
 
-/// Right-button drag gestures (FlowVision).
+/// Right-button drag gestures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Gesture {
     Up,
@@ -669,11 +669,7 @@ impl Tab {
                         let n = entries.len();
                         let t0 = Instant::now();
                         t.0.model.extend(entries);
-                        tracing::trace!(
-                            "appended {n} items in {:?} (cells created so far: {})",
-                            t0.elapsed(),
-                            crate::browser::cell::CELLS_CREATED.load(std::sync::atomic::Ordering::Relaxed)
-                        );
+                        tracing::trace!("appended {n} items in {:?}", t0.elapsed());
                         if first {
                             first = false;
                             tracing::debug!("first batch after {:?}", started.elapsed());
@@ -798,36 +794,7 @@ impl Tab {
         });
     }
 
-    /// Diagnostics (`FLOWLIN_DEBUG_GRID=1`): how many cells the grid holds.
-    fn debug_grid(&self) {
-        if std::env::var_os("FLOWLIN_DEBUG_GRID").is_none() {
-            return;
-        }
-        let grid = self.0.grid.clone();
-        glib::timeout_add_local_once(Duration::from_millis(800), move || {
-            let (mut n, mut mapped, mut sample) = (0, 0, Vec::new());
-            let mut c = grid.first_child();
-            while let Some(w) = c {
-                n += 1;
-                if w.is_child_visible() && w.is_mapped() {
-                    mapped += 1;
-                }
-                if sample.len() < 4 {
-                    sample.push(format!("{}:{}x{}", w.css_name(), w.width(), w.height()));
-                }
-                c = w.next_sibling();
-            }
-            tracing::warn!(
-                "grid: {n} children ({mapped} mapped), grid {}x{}, sample {:?}",
-                grid.width(),
-                grid.height(),
-                sample
-            );
-        });
-    }
-
     fn after_scan(&self) {
-        self.debug_grid();
         self.ensure_ratings();
         let mode = self.0.mode.get();
         let key = self.0.model.sort_state().key;

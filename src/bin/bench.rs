@@ -1,5 +1,5 @@
-//! `flowlin-bench <folder>`: times enumeration and thumbnail latency to
-//! check the performance targets (Section 5 of the spec).
+//! `flowlin-bench <folder> [--recursive]`: times folder enumeration and
+//! thumbnail / full-size decoding on a real folder.
 
 use std::path::PathBuf;
 use std::time::Instant;

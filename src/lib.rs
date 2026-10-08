@@ -1,4 +1,4 @@
-//! Flowlin — a fast local image browser modelled on FlowVision.
+//! Flowlin — a fast, private, keyboard-driven local image browser.
 
 pub mod config;
 pub mod i18n;

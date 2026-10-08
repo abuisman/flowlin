@@ -1,4 +1,4 @@
-//! FlowVision-style folder jumps: previous / next folder *that contains
+//! Folder jumps: previous / next folder *that contains
 //! images*, in disk-wide depth-first, natural-alphabetical order.
 
 use std::path::{Path, PathBuf};

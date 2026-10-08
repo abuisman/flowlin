@@ -209,8 +209,7 @@ fn setup_app_actions(app: &adw::Application) {
             .version(VERSION)
             .developer_name("Flowlin contributors")
             .license_type(gtk::License::Gpl30)
-            .comments(tr("A fast local image browser, modelled on FlowVision. No network access, no tracking, nothing remembered on disk."))
-            .website("https://flowvision.app")
+            .comments(tr("A fast local image browser. No network access, no tracking, nothing remembered on disk."))
             .build();
         d.present(a.active_window().as_ref());
     });
@@ -256,7 +255,7 @@ fn show_preferences(parent: Option<&gtk::Window>) {
     let browse = adw::PreferencesGroup::new();
     browse.set_title(&tr("Browsing"));
     let nav = adw::SwitchRow::new();
-    nav.set_title(&tr("Single-Key Folder Navigation"));
+    nav.set_title(&tr("Single-Key Shortcuts"));
     nav.set_subtitle(&tr("W/A/S/D work like the arrow keys everywhere, R toggles subfolders. When off, letters only jump to matching file names."));
     s.bind("single-key-navigation", &nav, "active").build();
     browse.add(&nav);

@@ -79,7 +79,7 @@
     </key>
     <key name="single-key-navigation" type="b">
       <default>true</default>
-      <summary>W/A/S/D/R single-key shortcuts in the grid</summary>
+      <summary>Single-letter shortcuts (W/A/S/D as arrow keys, R, 0–5)</summary>
       <description>When off, all letters go to type-ahead search.</description>
     </key>
     <key name="thumbnail-memory" type="u">

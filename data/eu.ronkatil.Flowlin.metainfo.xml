@@ -10,7 +10,7 @@
   <summary>Browse folders of images quickly</summary>
   <description>
     <p>
-      Flowlin is a fast local image browser modelled on FlowVision. Pick a
+      Flowlin is a fast local image browser for Linux. Pick a
       folder in the tree, see its images as thumbnails, and step through them
       full size with the arrow keys. Recursive mode shows every image below a
       folder in one grid.

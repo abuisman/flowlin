@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.92"
 license = "GPL-3.0-or-later"
-description = "Fast local image browser for Linux, modelled on FlowVision"
+description = "Fast, private, keyboard-driven image browser for Linux"
 default-run = "flowlin"
 
 [lib]
