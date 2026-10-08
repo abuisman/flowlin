@@ -17,13 +17,15 @@ jobs:
         if: startsWith(matrix.image, 'fedora')
         run: |
           dnf install -y gcc git curl gtk4-devel libadwaita-devel gdk-pixbuf2-devel \
-            glib2-devel xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
+            glib2-devel gstreamer1-devel gstreamer1-plugins-base-devel \
+            xorg-x11-server-Xvfb dbus-daemon dbus-x11 mesa-dri-drivers
       - name: System dependencies (Debian/Ubuntu)
         if: "!startsWith(matrix.image, 'fedora')"
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git curl pkg-config \
             libgtk-4-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev libglib2.0-dev-bin \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             xvfb xauth dbus dbus-x11 libgl1-mesa-dri
       - uses: actions/checkout@v4
       - name: Rust toolchain (rustup; distro cargo is older than the MSRV)

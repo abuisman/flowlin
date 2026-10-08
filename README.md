@@ -87,7 +87,7 @@ ship GTK 4 and libadwaita.
 ### 2. Build and install
 
 ```sh
-git clone <repository-url> flowlin
+git clone https://github.com/abuisman/flowlin.git
 cd flowlin
 cargo build --release
 ./build-aux/install.sh

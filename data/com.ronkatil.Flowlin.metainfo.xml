@@ -24,6 +24,9 @@
         nothing remembered about what you opened</li>
     </ul>
   </description>
+  <url type="homepage">https://github.com/abuisman/flowlin</url>
+  <url type="bugtracker">https://github.com/abuisman/flowlin/issues</url>
+  <url type="vcs-browser">https://github.com/abuisman/flowlin</url>
   <launchable type="desktop-id">com.ronkatil.Flowlin.desktop</launchable>
   <provides>
     <binary>flowlin</binary>
@@ -34,7 +37,7 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.1.0" date="2026-09-24">
+    <release version="0.1.0" date="2026-10-08">
       <description><p>First release: browser, viewer, recursive mode.</p></description>
     </release>
   </releases>

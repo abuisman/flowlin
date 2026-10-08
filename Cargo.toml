@@ -5,6 +5,8 @@ edition = "2021"
 rust-version = "1.92"
 license = "GPL-3.0-or-later"
 description = "Fast, private, keyboard-driven image browser for Linux"
+repository = "https://github.com/abuisman/flowlin"
+homepage = "https://github.com/abuisman/flowlin"
 default-run = "flowlin"
 
 [lib]
