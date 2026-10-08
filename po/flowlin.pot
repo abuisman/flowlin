@@ -504,55 +504,55 @@ msgstr ""
 msgid "About Flowlin"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.desktop:3 data/eu.ronkatil.Flowlin.metainfo.xml:6
+#: data/com.ronkatil.Flowlin.desktop:3 data/com.ronkatil.Flowlin.metainfo.xml:6
 msgid "Flowlin"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.desktop:4
+#: data/com.ronkatil.Flowlin.desktop:4
 msgid "Image Browser"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.desktop:5 data/eu.ronkatil.Flowlin.metainfo.xml:10
+#: data/com.ronkatil.Flowlin.desktop:5 data/com.ronkatil.Flowlin.metainfo.xml:10
 msgid "Browse folders of images quickly"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.desktop:10
+#: data/com.ronkatil.Flowlin.desktop:10
 msgid "image;photo;picture;viewer;browser;thumbnail;gallery;"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:8
+#: data/com.ronkatil.Flowlin.metainfo.xml:8
 msgid "Flowlin contributors"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:12
+#: data/com.ronkatil.Flowlin.metainfo.xml:12
 msgid ""
 "Flowlin is a fast local image browser for Linux. Pick a folder in the tree, "
 "see its images as thumbnails, and step through them full size with the arrow "
 "keys. Recursive mode shows every image below a folder in one grid."
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:19
+#: data/com.ronkatil.Flowlin.metainfo.xml:19
 msgid "Grid, waterfall (masonry) and list layouts"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:20
+#: data/com.ronkatil.Flowlin.metainfo.xml:20
 msgid "Full-size viewer with zoom, pan, slideshow and animated images"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:21
+#: data/com.ronkatil.Flowlin.metainfo.xml:21
 msgid "Folder jumps with W/A/S/D keys and right-button mouse gestures"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:22
+#: data/com.ronkatil.Flowlin.metainfo.xml:22
 msgid "Tabs, favourites, file management with undo"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:23
+#: data/com.ronkatil.Flowlin.metainfo.xml:23
 msgid ""
 "Private by design: no network access, no thumbnail files on disk, nothing "
 "remembered about what you opened"
 msgstr ""
 
-#: data/eu.ronkatil.Flowlin.metainfo.xml:38
+#: data/com.ronkatil.Flowlin.metainfo.xml:38
 msgid "First release: browser, viewer, recursive mode."
 msgstr ""

@@ -2,7 +2,7 @@
 <!-- Only UI preferences are stored. By design nothing records which folders
      or files were opened (no last folder, no history, no recent files). -->
 <schemalist gettext-domain="flowlin">
-  <schema id="eu.ronkatil.Flowlin" path="/eu/ronkatil/Flowlin/">
+  <schema id="com.ronkatil.Flowlin" path="/com/ronkatil/Flowlin/">
     <key name="view-mode" type="s">
       <choices><choice value="grid"/><choice value="waterfall"/><choice value="list"/></choices>
       <default>'grid'</default>

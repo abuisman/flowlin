@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>eu.ronkatil.Flowlin</id>
+  <id>com.ronkatil.Flowlin</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Flowlin</name>
-  <developer id="eu.ronkatil">
+  <developer id="com.ronkatil">
     <name>Flowlin contributors</name>
   </developer>
   <summary>Browse folders of images quickly</summary>
@@ -24,7 +24,7 @@
         nothing remembered about what you opened</li>
     </ul>
   </description>
-  <launchable type="desktop-id">eu.ronkatil.Flowlin.desktop</launchable>
+  <launchable type="desktop-id">com.ronkatil.Flowlin.desktop</launchable>
   <provides>
     <binary>flowlin</binary>
   </provides>

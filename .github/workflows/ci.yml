@@ -51,5 +51,5 @@ jobs:
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
         with:
           bundle: flowlin.flatpak
-          manifest-path: build-aux/eu.ronkatil.Flowlin.json
+          manifest-path: build-aux/com.ronkatil.Flowlin.json
           cache-key: flatpak-builder-${{ github.sha }}

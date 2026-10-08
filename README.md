@@ -129,8 +129,8 @@ example `gstreamer1-plugins-good`, `-bad-free` and `-libav` on Fedora,
 ### Flatpak (experimental)
 
 ```sh
-flatpak-builder --user --install build-dir build-aux/eu.ronkatil.Flowlin.json
-flatpak run eu.ronkatil.Flowlin
+flatpak-builder --user --install build-dir build-aux/com.ronkatil.Flowlin.json
+flatpak run com.ronkatil.Flowlin
 ```
 
 The Flatpak has full access to your files (`--filesystem=host`). This is
@@ -144,15 +144,15 @@ Remove the installed files (replace `~/.local` with the prefix you used):
 
 ```sh
 rm ~/.local/bin/flowlin \
-   ~/.local/share/applications/eu.ronkatil.Flowlin.desktop \
-   ~/.local/share/metainfo/eu.ronkatil.Flowlin.metainfo.xml \
-   ~/.local/share/icons/hicolor/*x*/apps/eu.ronkatil.Flowlin.png \
-   ~/.local/share/icons/hicolor/symbolic/apps/eu.ronkatil.Flowlin-symbolic.svg \
-   ~/.local/share/glib-2.0/schemas/eu.ronkatil.Flowlin.gschema.xml
+   ~/.local/share/applications/com.ronkatil.Flowlin.desktop \
+   ~/.local/share/metainfo/com.ronkatil.Flowlin.metainfo.xml \
+   ~/.local/share/icons/hicolor/*x*/apps/com.ronkatil.Flowlin.png \
+   ~/.local/share/icons/hicolor/symbolic/apps/com.ronkatil.Flowlin-symbolic.svg \
+   ~/.local/share/glib-2.0/schemas/com.ronkatil.Flowlin.gschema.xml
 glib-compile-schemas ~/.local/share/glib-2.0/schemas
 ```
 
-To also reset your preferences: `dconf reset -f /eu/ronkatil/Flowlin/`.
+To also reset your preferences: `dconf reset -f /com/ronkatil/Flowlin/`.
 
 ## Getting started
 

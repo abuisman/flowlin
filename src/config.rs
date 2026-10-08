@@ -1,4 +1,4 @@
-pub const APP_ID: &str = "eu.ronkatil.Flowlin";
+pub const APP_ID: &str = "com.ronkatil.Flowlin";
 pub const APP_NAME: &str = "Flowlin";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const GETTEXT_PACKAGE: &str = "flowlin";
