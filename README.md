@@ -146,7 +146,7 @@ Remove the installed files (replace `~/.local` with the prefix you used):
 rm ~/.local/bin/flowlin \
    ~/.local/share/applications/eu.ronkatil.Flowlin.desktop \
    ~/.local/share/metainfo/eu.ronkatil.Flowlin.metainfo.xml \
-   ~/.local/share/icons/hicolor/scalable/apps/eu.ronkatil.Flowlin.svg \
+   ~/.local/share/icons/hicolor/*x*/apps/eu.ronkatil.Flowlin.png \
    ~/.local/share/icons/hicolor/symbolic/apps/eu.ronkatil.Flowlin-symbolic.svg \
    ~/.local/share/glib-2.0/schemas/eu.ronkatil.Flowlin.gschema.xml
 glib-compile-schemas ~/.local/share/glib-2.0/schemas

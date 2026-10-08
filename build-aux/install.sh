@@ -11,8 +11,9 @@ cd "$ROOT"
 install -Dm755 target/release/flowlin "$PREFIX/bin/flowlin"
 install -Dm644 data/eu.ronkatil.Flowlin.desktop "$PREFIX/share/applications/eu.ronkatil.Flowlin.desktop"
 install -Dm644 data/eu.ronkatil.Flowlin.metainfo.xml "$PREFIX/share/metainfo/eu.ronkatil.Flowlin.metainfo.xml"
-install -Dm644 data/icons/hicolor/scalable/apps/eu.ronkatil.Flowlin.svg \
-  "$PREFIX/share/icons/hicolor/scalable/apps/eu.ronkatil.Flowlin.svg"
+for icon in data/icons/hicolor/*x*/apps/eu.ronkatil.Flowlin.png; do
+  install -Dm644 "$icon" "$PREFIX/share/${icon#data/}"
+done
 install -Dm644 data/icons/hicolor/symbolic/apps/eu.ronkatil.Flowlin-symbolic.svg \
   "$PREFIX/share/icons/hicolor/symbolic/apps/eu.ronkatil.Flowlin-symbolic.svg"
 install -Dm644 data/eu.ronkatil.Flowlin.gschema.xml "$PREFIX/share/glib-2.0/schemas/eu.ronkatil.Flowlin.gschema.xml"
