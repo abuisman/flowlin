@@ -27,6 +27,12 @@
   <url type="homepage">https://github.com/abuisman/flowlin</url>
   <url type="bugtracker">https://github.com/abuisman/flowlin/issues</url>
   <url type="vcs-browser">https://github.com/abuisman/flowlin</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/abuisman/flowlin/main/docs/screenshots/flowlin.png</image>
+      <caption>Folder tree and thumbnail grid</caption>
+    </screenshot>
+  </screenshots>
   <launchable type="desktop-id">com.ronkatil.Flowlin.desktop</launchable>
   <provides>
     <binary>flowlin</binary>

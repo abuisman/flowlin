@@ -9,6 +9,8 @@ of thousands of files and never touches the network.
 
 Built with GTK 4 and libadwaita, written in Rust. Works on Wayland and X11.
 
+![Flowlin: folder tree and thumbnail grid](docs/screenshots/flowlin.png)
+
 - [Features](#features)
 - [Installation](#installation)
 - [Getting started](#getting-started)
